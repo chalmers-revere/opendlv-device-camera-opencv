@@ -28,7 +28,7 @@
 #include <string>
 #include <thread>
 
-//docker run --rm -ti --init --device /dev/video0 -v /tmp/.X11-unix:/tmp/.X11-ix -e DISPLAY=$DISPLAY -v /dev/shm:/dev/shm  d opendlv-device-camera-v4l --camera=0 --cid=111 --verbose
+//ocker run --rm -ti --init --device /dev/video0 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -v /dev/shm:/dev/shm  d opendlv-device-camera-opencv --camera=/dev/video0 --cid=111 --verbose --name=ABCDEF --width=1024 --height=768 --bpp=24
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
@@ -38,7 +38,7 @@ int32_t main(int32_t argc, char **argv) {
         std::cerr << "Usage:   " << argv[0] << " --camera=<V4L id> --cid=<OpenDaVINCI session> --width=<width> --height=<height> --bpp=<bits per pixel> [--name=<unique name for the associated shared memory>] [--id=<Identifier in case of multiple cameras>] [--verbose]" << std::endl;
         std::cerr << "         --width:   desired width of a frame" << std::endl;
         std::cerr << "         --height:  desired height of a frame" << std::endl;
-        std::cerr << "         --bpp:     desired bits per pixel of a frame" << std::endl;
+        std::cerr << "         --bpp:     desired bits per pixel of a frame (either 8 or 24)" << std::endl;
         std::cerr << "         --name:    when omitted, '/cam0' is chosen" << std::endl;
         std::cerr << "         --verbose: when set, the raw image is displayed" << std::endl;
         std::cerr << "Example: " << argv[0] << " --cid=111 --camera=/dev/video0 --name=cam0" << std::endl;
@@ -57,49 +57,52 @@ int32_t main(int32_t argc, char **argv) {
         const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
         const uint32_t HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
         const uint32_t BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
-        const uint32_t SIZE{WIDTH * HEIGHT * BPP/8};
 
-        const std::string NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
-        const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
-        const bool VERBOSE{commandlineArguments.count("verbose") != 0};
+        if ( (BPP != 24) && (BPP != 8) ) {
+            std::cerr << argv[0] << ": bits per pixel must be either 24 or 8; found " << BPP << "." << std::endl;
+        }
+        else {
+            const uint32_t SIZE{WIDTH * HEIGHT * BPP/8};
+            const std::string NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
+            const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
+            const bool VERBOSE{commandlineArguments.count("verbose") != 0};
 
-        (void)ID;
+            (void)ID;
 
-        if (videoStream && videoStream->isOpened()) {
-            videoStream->set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
-            videoStream->set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
+            if (videoStream && videoStream->isOpened()) {
+                videoStream->set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
+                videoStream->set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
+                videoStream->set(CV_CAP_PROP_FORMAT, (BPP == 24 ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
 
-            // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
-            cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
+                // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
+                cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
-            cluon::SharedMemory sharedMemory{NAME, SIZE};
-            if (sharedMemory.valid()) {
-                std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory.name() << "' (" << sharedMemory.size() << ")." << std::endl;
-                while (od4.isRunning()) {
-                    cv::Mat frame;
-                    if (videoStream->read(frame)) {
-                        if (VERBOSE) {
-                            cv::imshow(sharedMemory.name(), frame);
+                std::unique_ptr<cluon::SharedMemory> sharedMemory(new cluon::SharedMemory{NAME, SIZE});
+                if (sharedMemory && sharedMemory->valid()) {
+                    std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
+
+                    cv::Mat frameData;
+                    bool retVal{true};
+                    while (retVal && od4.isRunning()) {
+                        retVal = videoStream->read(frameData);
+                        if (retVal) {
+                            sharedMemory->lock();
+                            ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(frameData.data), frameData.step * frameData.rows);
+                            sharedMemory->unlock();
                         }
-
-                        // TODO: Store image in shared memory; now: simple test data.
-                        sharedMemory.lock();
-                        uint32_t *data = reinterpret_cast<uint32_t *>(sharedMemory.data());
-                        *data += 1;
-                        sharedMemory.unlock();
+                        if (retVal && VERBOSE) {
+                            cv::imshow(sharedMemory->name(), frameData);
+                        }
+                        cv::waitKey(10);
                     }
-                    else {
-                        break;
-                    }
-                    cv::waitKey(10);
+                }
+                else {
+                    std::cerr << argv[0] << ": Failed to create shared memory '" << NAME << "'." << std::endl;
                 }
             }
             else {
-                std::cerr << argv[0] << ": Failed to create shared memory '" << sharedMemory.name() << "'." << std::endl;
+                std::cerr << argv[0] << ": Failed to open camera '" << commandlineArguments["camera"] << "'." << std::endl;
             }
-        }
-        else {
-            std::cerr << argv[0] << ": Failed to open camera '" << commandlineArguments["camera"] << "'." << std::endl;
         }
     }
     return retCode;
