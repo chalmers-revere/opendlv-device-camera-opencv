@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -33,20 +34,27 @@ int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("camera")) || (0 == commandlineArguments.count("cid")) ) {
-        std::cerr << argv[0] << " interfaces with the given V4L camera id (i.e., 0 for /dev/video0) and publishes it to a running OpenDaVINCI session using the OpenDLV Standard Message Set." << std::endl;
+        std::cerr << argv[0] << " interfaces with the given V4L camera id (i.e., 0 for /dev/video0 or a valid connection string) and publishes it to a running OpenDaVINCI session using the OpenDLV Standard Message Set." << std::endl;
         std::cerr << "Usage:   " << argv[0] << " --camera=<V4L id> --cid=<OpenDaVINCI session> [--id=<Identifier in case of multiple cameras>] [--verbose]" << std::endl;
         std::cerr << "Example: " << argv[0] << " --camera=0 --cid=111" << std::endl;
         retCode = 1;
     }
     else {
-        const uint32_t V4L_CAMERA_ID{(commandlineArguments["camera"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["camera"])) : 0};
+        std::unique_ptr<cv::VideoCapture> videoStream{nullptr};
+        try {
+            const uint32_t AUTO{(commandlineArguments["camera"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["camera"])) : 0};
+            videoStream.reset(new cv::VideoCapture(AUTO));
+        }
+        catch (...) {
+            videoStream.reset(new cv::VideoCapture(commandlineArguments["camera"]));
+        }
+
         const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
         const bool VERBOSE{commandlineArguments.count("verbose") != 0};
 
         (void)ID;
 
-        cv::VideoCapture videoStream(V4L_CAMERA_ID);
-        if (videoStream.isOpened()) {
+        if (videoStream && videoStream->isOpened()) {
             // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
@@ -54,7 +62,7 @@ int32_t main(int32_t argc, char **argv) {
             if (sharedMemory.valid()) {
                 while (od4.isRunning()) {
                     cv::Mat frame;
-                    if (videoStream.read(frame)) {
+                    if (videoStream->read(frame)) {
                         if (VERBOSE) {
                             cv::imshow("camera", frame);
                         }
@@ -76,7 +84,7 @@ int32_t main(int32_t argc, char **argv) {
             }
         }
         else {
-            std::cerr << argv[0] << ": Failed to open camera " << V4L_CAMERA_ID << std::endl;
+            std::cerr << argv[0] << ": Failed to open camera " << commandlineArguments["camera"] << std::endl;
         }
     }
     return retCode;

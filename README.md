@@ -1,2 +1,2 @@
-# opendlv-device-camera-v4l
-OpenDLV Microservice to interface with V4L camera devices
+# opendlv-device-camera-opencv
+OpenDLV Microservice to interface with OpenCV-accessible camera devices

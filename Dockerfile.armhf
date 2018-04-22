@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Part to build opendlv-device-camera-v4l.
+# Part to build opendlv-device-camera-opencv.
 FROM pipill/armhf-alpine:edge as builder
 MAINTAINER Christian Berger "christian.berger@gu.se"
 
@@ -39,7 +39,7 @@ RUN mkdir build && \
 RUN [ "cross-build-end" ]
 
 
-# Part to deploy opendlv-device-camera-v4l.
+# Part to deploy opendlv-device-camera-opencv.
 FROM pipill/armhf-alpine:edge
 MAINTAINER Christian Berger "christian.berger@gu.se"
 
@@ -56,7 +56,7 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
 RUN [ "cross-build-end" ]
 
 WORKDIR /usr/bin
-COPY --from=builder /tmp/bin/opendlv-device-camera-v4l .
+COPY --from=builder /tmp/bin/opendlv-device-camera-opencv .
 ENV NO_AT_BRIDGE=1
-CMD ["/usr/bin/opendlv-device-camera-v4l"]
+CMD ["/usr/bin/opendlv-device-camera-opencv"]
 
