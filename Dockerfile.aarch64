@@ -58,5 +58,5 @@ RUN [ "cross-build-end" ]
 WORKDIR /usr/bin
 COPY --from=builder /tmp/bin/opendlv-device-camera-opencv .
 ENV NO_AT_BRIDGE=1
-CMD ["/usr/bin/opendlv-device-camera-opencv"]
+ENTRYPOINT ["/usr/bin/opendlv-device-camera-opencv"]
 

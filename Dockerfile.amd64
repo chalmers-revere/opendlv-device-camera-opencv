@@ -48,5 +48,5 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
 WORKDIR /usr/bin
 COPY --from=builder /tmp/bin/opendlv-device-camera-opencv .
 ENV NO_AT_BRIDGE=1
-CMD ["/usr/bin/opendlv-device-camera-opencv"]
+ENTRYPOINT ["/usr/bin/opendlv-device-camera-opencv"]
 

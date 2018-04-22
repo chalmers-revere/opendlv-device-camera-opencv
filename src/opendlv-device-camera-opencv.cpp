@@ -28,8 +28,6 @@
 #include <string>
 #include <thread>
 
-//ocker run --rm -ti --init --device /dev/video0 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -v /dev/shm:/dev/shm  d opendlv-device-camera-opencv --camera=/dev/video0 --cid=111 --verbose --name=ABCDEF --width=1024 --height=768 --bpp=24
-
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -89,6 +87,7 @@ int32_t main(int32_t argc, char **argv) {
                             sharedMemory->lock();
                             ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(frameData.data), frameData.step * frameData.rows);
                             sharedMemory->unlock();
+                            sharedMemory->notifyAll();
                         }
                         if (retVal && VERBOSE) {
                             cv::imshow(sharedMemory->name(), frameData);
