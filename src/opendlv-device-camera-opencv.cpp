@@ -35,8 +35,10 @@ int32_t main(int32_t argc, char **argv) {
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("camera")) || (0 == commandlineArguments.count("cid")) ) {
         std::cerr << argv[0] << " interfaces with the given V4L camera id (i.e., 0 for /dev/video0 or a valid connection string) and publishes it to a running OpenDaVINCI session using the OpenDLV Standard Message Set." << std::endl;
-        std::cerr << "Usage:   " << argv[0] << " --camera=<V4L id> --cid=<OpenDaVINCI session> [--id=<Identifier in case of multiple cameras>] [--verbose]" << std::endl;
-        std::cerr << "Example: " << argv[0] << " --camera=0 --cid=111" << std::endl;
+        std::cerr << "Usage:   " << argv[0] << " --camera=<V4L id> --cid=<OpenDaVINCI session> [--name=<unique name for the associated shared memory>] [--id=<Identifier in case of multiple cameras>] [--verbose]" << std::endl;
+        std::cerr << "         --name:    when omitted, '/cam0' is chosen" << std::endl;
+        std::cerr << "         --verbose: when set, the raw image is displayed" << std::endl;
+        std::cerr << "Example: " << argv[0] << " --cid=111 --camera=/dev/video0 --name=cam0" << std::endl;
         retCode = 1;
     }
     else {
@@ -49,6 +51,7 @@ int32_t main(int32_t argc, char **argv) {
             videoStream.reset(new cv::VideoCapture(commandlineArguments["camera"]));
         }
 
+        const std::string NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
         const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
         const bool VERBOSE{commandlineArguments.count("verbose") != 0};
 
@@ -58,13 +61,14 @@ int32_t main(int32_t argc, char **argv) {
             // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
-            cluon::SharedMemory sharedMemory{"/camera0", 4};
+            cluon::SharedMemory sharedMemory{NAME, 4};
             if (sharedMemory.valid()) {
+                std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory.name() << "'." << std::endl;
                 while (od4.isRunning()) {
                     cv::Mat frame;
                     if (videoStream->read(frame)) {
                         if (VERBOSE) {
-                            cv::imshow("camera", frame);
+                            cv::imshow(sharedMemory.name(), frame);
                         }
 
                         // TODO: Store image in shared memory; now: simple test data.
@@ -80,11 +84,11 @@ int32_t main(int32_t argc, char **argv) {
                 }
             }
             else {
-                std::cerr << argv[0] << ": Failed to create shared memory '/camera0'." << std::endl;
+                std::cerr << argv[0] << ": Failed to create shared memory '" << sharedMemory.name() << "'." << std::endl;
             }
         }
         else {
-            std::cerr << argv[0] << ": Failed to open camera " << commandlineArguments["camera"] << std::endl;
+            std::cerr << argv[0] << ": Failed to open camera '" << commandlineArguments["camera"] << "'." << std::endl;
         }
     }
     return retCode;
