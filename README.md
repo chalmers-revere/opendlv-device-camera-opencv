@@ -13,9 +13,25 @@ To use this microservice, your need to allow access to your X11 server:
 xhost +
 ```
 
-Next, you can start the streaming (omit `--verbose` to not display the window showing the raw image):
+Next, you can start the streaming (omit `--verbose` to not display the window showing the raw image; the parameter ulimit specifies that maximum bytes to be locked in RAM):
 ```
-docker run --rm -ti --init --device /dev/video0 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -v /dev/shm:/dev/shm chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1 --camera=/dev/video0 --cid=111 --verbose --name=camera0 --width=1024 --height=768 --bpp=24
+docker run \
+           --rm \
+           -ti \
+           --init \
+           --device /dev/video0 \
+           -v /tmp/.X11-unix:/tmp/.X11-unix \
+           -e DISPLAY=$DISPLAY \
+           -v /dev/shm:/dev/shm \
+           --ulimit memlock=2359296:2359296 \
+           chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1 \
+               --camera=/dev/video0 \
+               --cid=111 \
+               --name=camera0 \
+               --width=1024 \
+               --height=768 \
+               --bpp=24 \
+               --verbose
 ```
 
 The directory `example` contains a small program that demonstrates how to access the shared memory that is created from `chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1`. You can build it as follows:
@@ -25,8 +41,23 @@ cd example
 docker build -t example -f Dockerfile.amd64 .
 ```
 
-Finally, you can run the example as follows (obviously, the parameters must match with the settings for `chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1`:
+Finally, you can run the example as follows (obviously, the parameters must match with the settings for `chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1`; the parameter ulimit specifies that maximum bytes to be locked in RAM):
 
 ```
-docker run --rm -ti --net=host --init -v /dev/shm:/dev/shm -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY example --cid=111 --verbose --name=camera0 --width=640 --height=480 --bpp=24
+docker run \
+           --rm \
+           -ti \
+           --init \
+           --device /dev/video0 \
+           -v /tmp/.X11-unix:/tmp/.X11-unix \
+           -e DISPLAY=$DISPLAY \
+           -v /dev/shm:/dev/shm \
+           --ulimit memlock=2359296:2359296 \
+           example \
+               --cid=111 \
+               --name=camera0 \
+               --width=1024 \
+               --height=768 \
+               --bpp=24 \
+               --verbose
 ```
