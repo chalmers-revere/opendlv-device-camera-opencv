@@ -13564,9 +13564,11 @@ inline SharedMemory::~SharedMemory() noexcept {
     if ((nullptr != m_sharedMemory) && ::munmap(m_sharedMemory, sizeof(SharedMemoryHeader) + m_size)) {
         std::cerr << "[cluon::SharedMemory] Failed to unmap shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
     }
+else std::cerr << "[cluon::SharedMemory] Unmapped shared memory." << std::endl; // LCOV_EXCL_LINE
     if (!m_hasOnlyAttachedToSharedMemory && (-1 != m_fd) && (-1 == ::shm_unlink(m_name.c_str()) && (ENOENT != errno))) {
         std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
     }
+else std::cerr << "[cluon::SharedMemory] Unlinked shared memory." << std::endl; // LCOV_EXCL_LINE
 #endif
 }
 

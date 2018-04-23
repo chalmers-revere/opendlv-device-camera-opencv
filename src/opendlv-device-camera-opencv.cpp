@@ -21,12 +21,31 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
+
+#include <csignal>
+
+struct sigaction signalHandler;
+static std::atomic<bool> isRunning{true};
+
+void handleSignal(int32_t signal);
+void finalize();
+
+void finalize() {
+    isRunning.store(false);
+}
+
+void handleSignal(int32_t signal) {
+    (void) signal;
+    finalize();
+}
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
@@ -44,6 +63,19 @@ int32_t main(int32_t argc, char **argv) {
         retCode = 1;
     }
     else {
+        {
+            atexit(finalize);
+            ::memset(&signalHandler, 0, sizeof(signalHandler));
+            signalHandler.sa_handler = &handleSignal;
+
+            if (::sigaction(SIGINT, &signalHandler, NULL) < 0) {
+                std::cerr << argv[0] << ": Failed to register signal SIGINT." << std::endl;
+            }
+            if (::sigaction(SIGTERM, &signalHandler, NULL) < 0) {
+                std::cerr << argv[0] << ": Failed to register signal SIGTERM." << std::endl;
+            }
+        }
+
         std::unique_ptr<cv::VideoCapture> videoStream{nullptr};
         try {
             const uint32_t AUTO{(commandlineArguments["camera"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["camera"])) : 0};
@@ -98,7 +130,7 @@ int32_t main(int32_t argc, char **argv) {
                         cv::imshow(sharedMemory->name(), frameData);
                         cv::waitKey(1);
                     }
-                    return retVal;
+                    return retVal && isRunning;
                 };
 
                 od4.timeTrigger(FREQ, timeTrigger);
