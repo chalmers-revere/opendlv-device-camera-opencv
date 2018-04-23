@@ -85,9 +85,9 @@ int32_t main(int32_t argc, char **argv) {
             if (sharedMemory && sharedMemory->valid()) {
                 std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-                auto timeTrigger = [&videoStream, &sharedMemory, &VERBOSE](){
-                    cv::Mat frameData;
-                    bool retVal = videoStream->read(frameData);
+                cv::Mat frameData;
+                auto timeTrigger = [&videoStream, &sharedMemory, &VERBOSE, &frameData](){
+                    const bool retVal = videoStream->read(frameData);
                     if (retVal) {
                         sharedMemory->lock();
                         ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(frameData.data), frameData.step * frameData.rows);
@@ -96,8 +96,8 @@ int32_t main(int32_t argc, char **argv) {
                     }
                     if (retVal && VERBOSE) {
                         cv::imshow(sharedMemory->name(), frameData);
+                        cv::waitKey(1);
                     }
-                    cv::waitKey(10);
                     return retVal;
                 };
 
