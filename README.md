@@ -24,13 +24,14 @@ docker run \
            -e DISPLAY=$DISPLAY \
            -v /dev/shm:/dev/shm \
            --ulimit memlock=2359296:2359296 \
-           chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.1 \
+           chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.2 \
                --camera=/dev/video0 \
                --cid=111 \
                --name=camera0 \
                --width=1024 \
                --height=768 \
                --bpp=24 \
+               --freq=5 \
                --verbose
 ```
 
