@@ -85,7 +85,7 @@ if(UNIX)
     endif()
 endif()
 
-find_package(OpenCV REQUIRED core highgui videoio)
+find_package(OpenCV REQUIRED core highgui)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 set(LIBRARIES ${LIBRARIES} ${OpenCV_LIBS})
 

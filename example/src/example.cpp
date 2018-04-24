@@ -98,18 +98,28 @@ int32_t main(int32_t argc, char **argv) {
             if (sharedMemory && sharedMemory->valid()) {
                 std::clog << argv[0] << ": Found shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << " bytes)." << std::endl;
 
-                bool retVal{true};
-                while (retVal && od4.isRunning() && isRunning) {
+                CvSize size;
+                size.width = WIDTH;
+                size.height = HEIGHT;
+
+                IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, BPP/8);
+                sharedMemory->lock();
+                image->imageData = sharedMemory->data();
+                image->imageDataOrigin = image->imageData;
+                sharedMemory->unlock();
+
+                while (od4.isRunning() && isRunning) {
                     // The shared memory uses a pthread broadcast to notify us; just sleep to get awaken up.
                     sharedMemory->wait();
                     sharedMemory->lock();
-                    cv::Mat frameData(HEIGHT, WIDTH, (BPP == 24 ? CV_8UC3 : CV_8UC1), sharedMemory->data());
                     if (VERBOSE) {
-                        cv::imshow(sharedMemory->name(), frameData);
+                        cvShowImage(sharedMemory->name().c_str(), image);
                     }
                     sharedMemory->unlock();
                     cv::waitKey(1);
                 }
+
+                cvReleaseImageHeader(&image);
             }
             else {
                 std::cerr << argv[0] << ": Failed to access shared memory '" << NAME << "'." << std::endl;
