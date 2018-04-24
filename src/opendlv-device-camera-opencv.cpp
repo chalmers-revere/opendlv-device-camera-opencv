@@ -108,7 +108,7 @@ int32_t main(int32_t argc, char **argv) {
         if (videoStream && videoStream->isOpened()) {
             videoStream->set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
             videoStream->set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
-            videoStream->set(CV_CAP_PROP_FORMAT, (BPP == 24 ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
+//            videoStream->set(CV_CAP_PROP_FORMAT, (BPP == 24 ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
 
             // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
