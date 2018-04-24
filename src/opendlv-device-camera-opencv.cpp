@@ -123,7 +123,7 @@ int32_t main(int32_t argc, char **argv) {
                             IplImage *image = cvRetrieveFrame(videoStream);
 
                             sharedMemory->lock();
-                            ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(image->imageData), image->imageSizes);
+                            ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(image->imageData), image->imageSize);
                             sharedMemory->unlock();
                             sharedMemory->notifyAll();
 
