@@ -72,9 +72,18 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp
 include_directories(SYSTEM ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+
+IF(UNIX)
+    SET(JPEG_COMPILE_FLAGS "-Wno-effc++ -Wno-error -Wno-sign-compare -Wno-unused-parameter -Wno-shadow")
+    IF (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7)
+        SET(JPEG_COMPILE_FLAGS "${JPEG_COMPILE_FLAGS} -Wno-unused-but-set-variable -Wno-suggest-attribute=format")
+    ENDIF()
+    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp PROPERTIES COMPILE_FLAGS "${JPEG_COMPILE_FLAGS}")
+ENDIF()
+
 ################################################################################
 # Gather all object code first to avoid double compilation.
-add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
+add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
 set(LIBRARIES Threads::Threads)
 
 if(UNIX)
