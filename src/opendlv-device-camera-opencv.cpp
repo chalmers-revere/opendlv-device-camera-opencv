@@ -76,13 +76,14 @@ int32_t main(int32_t argc, char **argv) {
             }
         }
 
-        std::unique_ptr<cv::VideoCapture> videoStream{nullptr};
+        CvCapture *videoStream{nullptr};
         try {
             const uint32_t AUTO{(commandlineArguments["camera"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["camera"])) : 0};
-            videoStream.reset(new cv::VideoCapture(AUTO));
+            videoStream = cvCaptureFromCAM(AUTO);
         }
         catch (...) {
-            videoStream.reset(new cv::VideoCapture(commandlineArguments["camera"]));
+            std::cerr << argv[0] << ": Failed to open capture device: " << commandlineArguments["camera"] << std::endl;
+            return retCode = 1;
         }
 
         const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
@@ -105,10 +106,9 @@ int32_t main(int32_t argc, char **argv) {
 
         (void)ID;
 
-        if (videoStream && videoStream->isOpened()) {
-            videoStream->set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
-            videoStream->set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
-//            videoStream->set(CV_CAP_PROP_FORMAT, (BPP == 24 ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
+        if (videoStream) {
+            cvSetCaptureProperty(videoStream, CV_CAP_PROP_FRAME_WIDTH, WIDTH);
+            cvSetCaptureProperty(videoStream, CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
 
             // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
@@ -117,23 +117,28 @@ int32_t main(int32_t argc, char **argv) {
             if (sharedMemory && sharedMemory->valid()) {
                 std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-                cv::Mat frameData;
-                auto timeTrigger = [&videoStream, &sharedMemory, &VERBOSE, &frameData](){
-                    const bool retVal = videoStream->read(frameData);
-                    if (retVal) {
-                        sharedMemory->lock();
-                        ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(frameData.data), frameData.step * frameData.rows);
-                        sharedMemory->unlock();
-                        sharedMemory->notifyAll();
+                auto timeTrigger = [&videoStream, &sharedMemory, &VERBOSE](){
+                    if (nullptr != videoStream) {
+                        if (cvGrabFrame(videoStream)) {
+                            IplImage *image = cvRetrieveFrame(videoStream);
+
+                            sharedMemory->lock();
+                            ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(image->imageData), image->imageSizes);
+                            sharedMemory->unlock();
+                            sharedMemory->notifyAll();
+
+                            if (VERBOSE) {
+                                cvShowImage(sharedMemory->name().c_str(), image);
+                                cvWaitKey(1);
+                            }
+                        }
                     }
-                    if (retVal && VERBOSE) {
-                        cv::imshow(sharedMemory->name(), frameData);
-                        cv::waitKey(1);
-                    }
-                    return retVal && isRunning;
+                    return true && isRunning;
                 };
 
                 od4.timeTrigger(FREQ, timeTrigger);
+
+                cvReleaseCapture(&videoStream);
             }
             else {
                 std::cerr << argv[0] << ": Failed to create shared memory '" << NAME << "'." << std::endl;
