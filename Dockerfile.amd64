@@ -25,6 +25,7 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
         g++ \
         opencv \
         opencv-dev \
+        linux-headers \
         make
 ADD . /opt/sources
 WORKDIR /opt/sources

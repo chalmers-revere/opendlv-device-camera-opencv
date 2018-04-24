@@ -39,8 +39,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
     -fstack-protector \
     -fomit-frame-pointer \
     -pipe \
-    -pedantic -pedantic-errors \
-    -Werror \
     -Weffc++ \
     -Wall -Wextra -Wshadow -Wdeprecated \
     -Wdiv-by-zero -Wfloat-equal -Wfloat-conversion -Wsign-compare -Wpointer-arith \
