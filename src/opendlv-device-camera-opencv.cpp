@@ -44,6 +44,10 @@
 
 #include <linux/videodev2.h>
 
+extern "C" {
+    #include <libswscale/swscale.h>
+}
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -354,7 +358,15 @@ int32_t main(int32_t argc, char **argv) {
             timeout.tv_sec  = 1;
             timeout.tv_usec = 0;
             fd_set setOfFiledescriptorsToReadFrom{};
-    
+
+            struct SwsContext *yuv2rgbContext = nullptr;
+            if (BGR2RGB) {
+                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUV422P, WIDTH, HEIGHT, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+            }
+            else {
+                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUV422P, WIDTH, HEIGHT, AV_PIX_FMT_BGR24, 0, 0, 0, 0);
+            }
+
             while (isRunning && od4.isRunning()) {
                 FD_ZERO(&setOfFiledescriptorsToReadFrom);
                 FD_SET(videoDevice, &setOfFiledescriptorsToReadFrom);
@@ -389,7 +401,13 @@ int32_t main(int32_t argc, char **argv) {
                             decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                         }
                         if (isYUYV422) {
-                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
+                            // Old SW converter.
+//                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
+
+                            uint8_t *inData[1] = { static_cast<uint8_t*>(bufferStart) };
+                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
+                            int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
+                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {

@@ -96,6 +96,10 @@ find_package(OpenCV REQUIRED core highgui imgproc)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 set(LIBRARIES ${LIBRARIES} ${OpenCV_LIBS})
 
+find_package(Libswscale REQUIRED)
+include_directories(SYSTEM ${FFMPEGMODULES_INCLUDE_DIRS})
+set(LIBRARIES ${LIBRARIES} ${FFMPEGMODULES_LIBRARIES})
+
 ################################################################################
 # Create executable.
 add_executable(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src/${PROJECT_NAME}.cpp $<TARGET_OBJECTS:${PROJECT_NAME}-core>)
