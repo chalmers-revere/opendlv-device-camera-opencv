@@ -62,7 +62,7 @@ static std::atomic<bool> isRunning{true};
 void handleSignal(int32_t signal);
 void finalize();
 int convert_yuv_to_rgb_pixel(int y, int u, int v);
-int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height);
+int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height, bool bgr2rgb);
 
 
 void finalize() {
@@ -106,7 +106,7 @@ int convert_yuv_to_rgb_pixel(int y, int u, int v) {
     return pixel32;
 }
 
-int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height) {
+int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height, bool bgr2rgb) {
     unsigned int in, out = 0;
     unsigned int pixel_16;
     unsigned char pixel_24[3];
@@ -126,16 +126,30 @@ int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned i
         pixel_24[0] = (pixel32 & 0x000000ff);
         pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
         pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
-        rgb[out++] = pixel_24[0];
-        rgb[out++] = pixel_24[1];
-        rgb[out++] = pixel_24[2];
+        if (bgr2rgb) {
+            rgb[out++] = pixel_24[2];
+            rgb[out++] = pixel_24[1];
+            rgb[out++] = pixel_24[0];
+        }
+        else {
+            rgb[out++] = pixel_24[0];
+            rgb[out++] = pixel_24[1];
+            rgb[out++] = pixel_24[2];
+        }
         pixel32 = convert_yuv_to_rgb_pixel(y1, u, v);
         pixel_24[0] = (pixel32 & 0x000000ff);
         pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
         pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
-        rgb[out++] = pixel_24[0];
-        rgb[out++] = pixel_24[1];
-        rgb[out++] = pixel_24[2];
+        if (bgr2rgb) {
+            rgb[out++] = pixel_24[2];
+            rgb[out++] = pixel_24[1];
+            rgb[out++] = pixel_24[0];
+        }
+        else {
+            rgb[out++] = pixel_24[0];
+            rgb[out++] = pixel_24[1];
+            rgb[out++] = pixel_24[2];
+        }
     }
     return 0;
 }
@@ -375,7 +389,7 @@ int32_t main(int32_t argc, char **argv) {
                             decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                         }
                         if (isYUYV422) {
-                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT);
+                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
