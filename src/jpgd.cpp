@@ -3143,9 +3143,13 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
       {
         for (int x = 0; x < image_width; x++)
         {
-          pDst[0] = pScan_line[x*4+0];
+//          pDst[0] = pScan_line[x*4+0];
+//          pDst[1] = pScan_line[x*4+1];
+//          pDst[2] = pScan_line[x*4+2];
+          // BGR2RGB
+          pDst[0] = pScan_line[x*4+2];
           pDst[1] = pScan_line[x*4+1];
-          pDst[2] = pScan_line[x*4+2];
+          pDst[2] = pScan_line[x*4+0];
           pDst += 3;
         }
       }

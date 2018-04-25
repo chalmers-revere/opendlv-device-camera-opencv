@@ -309,7 +309,7 @@ int32_t main(int32_t argc, char **argv) {
                     image->imageData = reinterpret_cast<char*>(rawImage);
                     image->imageDataOrigin = image->imageData;
 
-                    cvCvtColor(image, image, CV_BGR2RGB);
+//                    cvCvtColor(image, image, CV_BGR2RGB);
 
                     cvShowImage(sharedMemory->name().c_str(), image);
                     cvWaitKey(1);
