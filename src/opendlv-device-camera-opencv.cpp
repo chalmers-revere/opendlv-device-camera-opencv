@@ -334,6 +334,7 @@ int32_t main(int32_t argc, char **argv) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
             auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT](){
+std::cerr << "Time trigger." << std::endl;
                 struct v4l2_buffer v4l2_buf;
                 ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
