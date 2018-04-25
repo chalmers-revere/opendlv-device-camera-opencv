@@ -39,6 +39,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 #include <linux/videodev2.h>
 
@@ -333,62 +335,72 @@ int32_t main(int32_t argc, char **argv) {
         if (sharedMemory && sharedMemory->valid()) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT](){
-                struct v4l2_buffer v4l2_buf;
-                ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
+            // Define timeout for select system call.
+            struct timeval timeout {};
+            timeout.tv_sec  = 1;
+            timeout.tv_usec = 0;
+            fd_set setOfFiledescriptorsToReadFrom{};
+    
+        auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT, &timeout, &setOfFiledescriptorsToReadFrom](){
+                FD_ZERO(&setOfFiledescriptorsToReadFrom);
+                FD_SET(videoDevice, &setOfFiledescriptorsToReadFrom);
+                ::select(videoDevice + 1, &setOfFiledescriptorsToReadFrom, nullptr, nullptr, &timeout);
+                if (FD_ISSET(videoDevice, &setOfFiledescriptorsToReadFrom)) {
+                    struct v4l2_buffer v4l2_buf;
+                    ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
-                v4l2_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-                v4l2_buf.memory = V4L2_MEMORY_MMAP;
+                    v4l2_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+                    v4l2_buf.memory = V4L2_MEMORY_MMAP;
 
-                if (0 > ::ioctl(videoDevice, VIDIOC_DQBUF, &v4l2_buf)) {
-                    std::cerr << argv[0] << ": Could not dequeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
-                    return false;
-                }
-
-                cluon::data::TimeStamp ts;
-                ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
-
-
-                const uint8_t bufferIndex = v4l2_buf.index;
-                const uint32_t bufferSize = v4l2_buf.bytesused;
-                unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
-                int width = 0;
-                int height = 0;
-                int actualBytesPerPixel = 0;
-                int requestedBytesPerPixel = 3;
-
-                if (0 < bufferSize) {
-                    sharedMemory->lock();
-
-                    if (isMJPEG) {
-                        decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
-                    }
-                    if (isYUYV422) {
-                        convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT);
+                    if (0 > ::ioctl(videoDevice, VIDIOC_DQBUF, &v4l2_buf)) {
+                        std::cerr << argv[0] << ": Could not dequeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
+                        return false;
                     }
 
-                    if (VERBOSE && (isMJPEG || isYUYV422)) {
-                        CvSize size;
-                        size.width = WIDTH;
-                        size.height = HEIGHT;
+                    cluon::data::TimeStamp ts;
+                    ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
 
-                        IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
-                        image->imageData = sharedMemory->data();
-                        image->imageDataOrigin = image->imageData;
+                    const uint8_t bufferIndex = v4l2_buf.index;
+                    const uint32_t bufferSize = v4l2_buf.bytesused;
+                    unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
+                    int width = 0;
+                    int height = 0;
+                    int actualBytesPerPixel = 0;
+                    int requestedBytesPerPixel = 3;
 
-                        cvShowImage(sharedMemory->name().c_str(), image);
-                        cvWaitKey(1);
+                    if (0 < bufferSize) {
+                        sharedMemory->lock();
 
-                        cvReleaseImageHeader(&image);
+                        if (isMJPEG) {
+                            decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
+                        }
+                        if (isYUYV422) {
+                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT);
+                        }
+
+                        if (VERBOSE && (isMJPEG || isYUYV422)) {
+                            CvSize size;
+                            size.width = WIDTH;
+                            size.height = HEIGHT;
+
+                            IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
+                            image->imageData = sharedMemory->data();
+                            image->imageDataOrigin = image->imageData;
+
+                            cvShowImage(sharedMemory->name().c_str(), image);
+                            cvWaitKey(1);
+
+                            cvReleaseImageHeader(&image);
+                        }
+
+                        sharedMemory->unlock();
+                        sharedMemory->notifyAll();
                     }
 
-                    sharedMemory->unlock();
-                    sharedMemory->notifyAll();
-                }
-
-                if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
-                    std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
-                    return false;
+                    if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
+                        std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
+                        return false;
+                    }
                 }
 
                 return true && isRunning;
