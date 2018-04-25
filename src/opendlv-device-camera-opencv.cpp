@@ -355,7 +355,7 @@ int32_t main(int32_t argc, char **argv) {
             timeout.tv_usec = 0;
             fd_set setOfFiledescriptorsToReadFrom{};
     
-        auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT, &timeout, &setOfFiledescriptorsToReadFrom](){
+            while (isRunning && od4.isRunning()) {
                 FD_ZERO(&setOfFiledescriptorsToReadFrom);
                 FD_SET(videoDevice, &setOfFiledescriptorsToReadFrom);
                 ::select(videoDevice + 1, &setOfFiledescriptorsToReadFrom, nullptr, nullptr, &timeout);
@@ -416,11 +416,7 @@ int32_t main(int32_t argc, char **argv) {
                         return false;
                     }
                 }
-
-                return true && isRunning;
-            };
-
-            od4.timeTrigger(FREQ, timeTrigger);
+            }
         }
         else {
             std::cerr << argv[0] << ": Failed to create shared memory '" << NAME << "'." << std::endl;
