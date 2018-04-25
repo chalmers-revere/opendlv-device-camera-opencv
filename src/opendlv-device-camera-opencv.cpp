@@ -358,6 +358,7 @@ int32_t main(int32_t argc, char **argv) {
                 int requestedBytesPerPixel = 3;
 
                 if (0 < bufferSize) {
+std::cerr << "Got " << bufferSize << " isMJPEG(" << isMJPEG << "), isYUYV422(" << isYUYV422 << ")." << std::endl;
                     sharedMemory->lock();
                     if (isMJPEG) {
                         decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
@@ -369,8 +370,8 @@ std::cerr << "Decode YUYV422 to RGB" << std::endl;
 
                     if (VERBOSE && (isMJPEG || isYUYV422)) {
                         CvSize size;
-                        size.width = width;
-                        size.height = height;
+                        size.width = WIDTH;
+                        size.height = HEIGHT;
 
                         IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
                         image->imageData = sharedMemory->data();
