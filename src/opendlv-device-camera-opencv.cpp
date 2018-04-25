@@ -89,9 +89,9 @@ int convert_yuv_to_rgb_pixel(int y, int u, int v) {
     unsigned int pixel32 = 0;
     unsigned char *pixel = (unsigned char *)&pixel32;
     int r, g, b;
-    r = y + (1.370705 * (v-128));
-    g = y - (0.698001 * (v-128)) - (0.337633 * (u-128));
-    b = y + (1.732446 * (u-128));
+    r = static_cast<int>(y + (1.370705 * (v-128)));
+    g = static_cast<int>(y - (0.698001 * (v-128)) - (0.337633 * (u-128)));
+    b = static_cast<int>(y + (1.732446 * (u-128)));
     if(r > 255) r = 255;
     if(g > 255) g = 255;
     if(b > 255) b = 255;
