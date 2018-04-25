@@ -44,8 +44,8 @@
 
 #include <linux/videodev2.h>
 
-
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -415,7 +415,12 @@ int32_t main(int32_t argc, char **argv) {
                         std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
                         return false;
                     }
+                } else {
+                    // Let the operating system yield other threads.
+                    using namespace std::literals::chrono_literals;
+                    std::this_thread::sleep_for(1ms);
                 }
+
             }
         }
         else {
