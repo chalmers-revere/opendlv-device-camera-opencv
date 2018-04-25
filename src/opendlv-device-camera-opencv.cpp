@@ -388,11 +388,11 @@ std::cerr << "Decode YUYV422 to RGB" << std::endl;
 
                     sharedMemory->unlock();
                     sharedMemory->notifyAll();
+                }
 
-                    if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
-                        std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
-                        return false;
-                    }
+                if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
+                    std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
+                    return false;
                 }
 
                 return true && isRunning;
