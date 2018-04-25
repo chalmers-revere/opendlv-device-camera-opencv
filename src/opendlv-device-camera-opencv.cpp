@@ -59,6 +59,9 @@ static std::atomic<bool> isRunning{true};
 
 void handleSignal(int32_t signal);
 void finalize();
+int convert_yuv_to_rgb_pixel(int y, int u, int v);
+int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height);
+
 
 void finalize() {
     isRunning.store(false);
@@ -78,6 +81,61 @@ unsigned char* decompress(const unsigned char *src, const uint32_t &srcSize, int
         imageData = jpgd::decompress_jpeg_image_from_memory(src, srcSize, width, height, actualBytesPerPixel, requestedBytesPerPixel, bgr2rgb, pDestBuffer, dest_buffer_size);
     }
     return imageData;
+}
+
+
+// Found here: https://gist.github.com/crouchggj/6894292
+int convert_yuv_to_rgb_pixel(int y, int u, int v) {
+    unsigned int pixel32 = 0;
+    unsigned char *pixel = (unsigned char *)&pixel32;
+    int r, g, b;
+    r = y + (1.370705 * (v-128));
+    g = y - (0.698001 * (v-128)) - (0.337633 * (u-128));
+    b = y + (1.732446 * (u-128));
+    if(r > 255) r = 255;
+    if(g > 255) g = 255;
+    if(b > 255) b = 255;
+    if(r < 0) r = 0;
+    if(g < 0) g = 0;
+    if(b < 0) b = 0;
+    pixel[0] = r ;
+    pixel[1] = g ;
+    pixel[2] = b ;
+    return pixel32;
+}
+
+int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height) {
+    unsigned int in, out = 0;
+    unsigned int pixel_16;
+    unsigned char pixel_24[3];
+    unsigned int pixel32;
+    int y0, u, y1, v;
+
+    for(in = 0; in < width * height * 2; in += 4) {
+        pixel_16 = yuv[in + 3] << 24 |
+                   yuv[in + 2] << 16 |
+                   yuv[in + 1] <<  8 |
+                   yuv[in + 0];
+        y0 = (pixel_16 & 0x000000ff);
+        u  = (pixel_16 & 0x0000ff00) >>  8;
+        y1 = (pixel_16 & 0x00ff0000) >> 16;
+        v  = (pixel_16 & 0xff000000) >> 24;
+        pixel32 = convert_yuv_to_rgb_pixel(y0, u, v);
+        pixel_24[0] = (pixel32 & 0x000000ff);
+        pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
+        pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
+        rgb[out++] = pixel_24[0];
+        rgb[out++] = pixel_24[1];
+        rgb[out++] = pixel_24[2];
+        pixel32 = convert_yuv_to_rgb_pixel(y1, u, v);
+        pixel_24[0] = (pixel32 & 0x000000ff);
+        pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
+        pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
+        rgb[out++] = pixel_24[0];
+        rgb[out++] = pixel_24[1];
+        rgb[out++] = pixel_24[2];
+    }
+    return 0;
 }
 
 
@@ -178,6 +236,16 @@ int32_t main(int32_t argc, char **argv) {
             return retCode = 1;
         }
 
+        bool isMJPEG{false};
+        bool isYUYV422{false};
+        if (v4l2_fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_MJPEG) {
+            std::clog << argv[0] << ": Capture device: " << commandlineArguments["camera"] << " provides MJPEG stream." << std::endl;
+            isMJPEG = true;
+        }
+        if (v4l2_fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV) {
+            std::clog << argv[0] << ": Capture device: " << commandlineArguments["camera"] << " provides YUYV 4:2:2 stream." << std::endl;
+            isYUYV422 = true;
+        }
 
         struct v4l2_streamparm v4l2_stream_parm;
         ::memset(&v4l2_stream_parm, 0, sizeof(struct v4l2_streamparm));
@@ -193,7 +261,7 @@ int32_t main(int32_t argc, char **argv) {
             return retCode = 1;
         }
 
-        constexpr uint32_t BUFFER_COUNT{30};
+        constexpr uint32_t BUFFER_COUNT{5};
 
         struct v4l2_requestbuffers v4l2_req_bufs;
         ::memset(&v4l2_req_bufs, 0, sizeof(struct v4l2_requestbuffers));
@@ -265,7 +333,7 @@ int32_t main(int32_t argc, char **argv) {
         if (sharedMemory && sharedMemory->valid()) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB](){
+            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422](){
                 struct v4l2_buffer v4l2_buf;
                 ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
@@ -284,14 +352,19 @@ int32_t main(int32_t argc, char **argv) {
                 const uint8_t bufferIndex = v4l2_buf.index;
                 const uint32_t bufferSize = v4l2_buf.bytesused;
                 unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
-
+std::cerr << "Got bytes " << bufferSize << std::endl;
                 int width = 0;
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
 
                 sharedMemory->lock();
-                decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
+                if (isMJPEG) {
+                    decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
+                }
+                if (isYUYV422) {
+std::cerr << "Decode YUYV422 to RGB" << std::endl;
+                }
 
                 if (VERBOSE) {
                     CvSize size;
