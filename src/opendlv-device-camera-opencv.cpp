@@ -333,7 +333,7 @@ int32_t main(int32_t argc, char **argv) {
         if (sharedMemory && sharedMemory->valid()) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422](){
+            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT](){
                 struct v4l2_buffer v4l2_buf;
                 ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
@@ -352,41 +352,43 @@ int32_t main(int32_t argc, char **argv) {
                 const uint8_t bufferIndex = v4l2_buf.index;
                 const uint32_t bufferSize = v4l2_buf.bytesused;
                 unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
-std::cerr << "Got bytes " << bufferSize << std::endl;
                 int width = 0;
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
 
-                sharedMemory->lock();
-                if (isMJPEG) {
-                    decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
-                }
-                if (isYUYV422) {
+                if (0 < bufferSize) {
+                    sharedMemory->lock();
+                    if (isMJPEG) {
+                        decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
+                    }
+                    if (isYUYV422) {
 std::cerr << "Decode YUYV422 to RGB" << std::endl;
-                }
+                        convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT);
+                    }
 
-                if (VERBOSE) {
-                    CvSize size;
-                    size.width = width;
-                    size.height = height;
+                    if (VERBOSE && (isMJPEG || isYUYV422)) {
+                        CvSize size;
+                        size.width = width;
+                        size.height = height;
 
-                    IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
-                    image->imageData = sharedMemory->data();
-                    image->imageDataOrigin = image->imageData;
+                        IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
+                        image->imageData = sharedMemory->data();
+                        image->imageDataOrigin = image->imageData;
 
-                    cvShowImage(sharedMemory->name().c_str(), image);
-                    cvWaitKey(1);
+                        cvShowImage(sharedMemory->name().c_str(), image);
+                        cvWaitKey(1);
 
-                    cvReleaseImageHeader(&image);
-                }
+                        cvReleaseImageHeader(&image);
+                    }
 
-                sharedMemory->unlock();
-                sharedMemory->notifyAll();
+                    sharedMemory->unlock();
+                    sharedMemory->notifyAll();
 
-                if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
-                    std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
-                    return false;
+                    if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
+                        std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
+                        return false;
+                    }
                 }
 
                 return true && isRunning;
