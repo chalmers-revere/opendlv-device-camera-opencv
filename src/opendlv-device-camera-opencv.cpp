@@ -334,7 +334,6 @@ int32_t main(int32_t argc, char **argv) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
             auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB, &isMJPEG, &isYUYV422, &WIDTH, &HEIGHT](){
-std::cerr << "Time trigger." << std::endl;
                 struct v4l2_buffer v4l2_buf;
                 ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
@@ -357,17 +356,14 @@ std::cerr << "Time trigger." << std::endl;
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
-std::cerr << "Got " << bufferSize << " bytes." << std::endl;
 
                 if (0 < bufferSize) {
-std::cerr << "isMJPEG(" << isMJPEG << "), isYUYV422(" << isYUYV422 << ")." << std::endl;
                     sharedMemory->lock();
 
                     if (isMJPEG) {
                         decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                     }
                     if (isYUYV422) {
-std::cerr << "Decode YUYV422 to RGB" << std::endl;
                         convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT);
                     }
 
