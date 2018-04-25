@@ -3082,9 +3082,17 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
 
   const int dst_bpl = image_width * req_comps;
 
-  uint8 *pImage_data = (uint8*)jpgd_malloc(dst_bpl * image_height);
-  if (!pImage_data)
-    return NULL;
+  bool externalMemory = ((NULL != pDestBuffer) && (dest_buffer_size == dst_bpl * image_height));
+
+  uint8 *pImage_data = NULL;
+  if (externalMemory) {
+    pImage_data = pDestBuffer;
+  }
+  else {
+    pImage_data = (uint8*)jpgd_malloc(dst_bpl * image_height);
+    if (!pImage_data)
+      return NULL;
+  }
 
   for (int y = 0; y < image_height; y++)
   {
@@ -3092,7 +3100,9 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
     uint scan_line_len;
     if (decoder.decode((const void**)&pScan_line, &scan_line_len) != JPGD_SUCCESS)
     {
-      jpgd_free(pImage_data);
+      if (!externalMemory) {
+        jpgd_free(pImage_data);
+      }
       return NULL;
     }
 

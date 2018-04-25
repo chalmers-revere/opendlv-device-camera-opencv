@@ -285,22 +285,13 @@ int32_t main(int32_t argc, char **argv) {
                 const uint32_t bufferSize = v4l2_buf.bytesused;
                 unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
 
-//                std::cerr << argv[0] << ": index = " << +bufferIndex << ", size = " << bufferSize << std::endl;
-
                 int width = 0;
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
-                unsigned char *rawImage = decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, NULL, 0);
-
-                if (NULL == rawImage) {
-                    std::cerr << argv[0] << ": Failed to decode video data from: " << commandlineArguments["camera"] << std::endl;
-                }
 
                 sharedMemory->lock();
-                ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(rawImage), width*height*requestedBytesPerPixel);
-                sharedMemory->unlock();
-                sharedMemory->notifyAll();
+                decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
 
                 if (VERBOSE) {
                     CvSize size;
@@ -308,10 +299,8 @@ int32_t main(int32_t argc, char **argv) {
                     size.height = height;
 
                     IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
-                    image->imageData = reinterpret_cast<char*>(rawImage);
+                    image->imageData = sharedMemory->data();
                     image->imageDataOrigin = image->imageData;
-
-//                    cvCvtColor(image, image, CV_BGR2RGB);
 
                     cvShowImage(sharedMemory->name().c_str(), image);
                     cvWaitKey(1);
@@ -319,7 +308,8 @@ int32_t main(int32_t argc, char **argv) {
                     cvReleaseImageHeader(&image);
                 }
 
-                ::free(rawImage);
+                sharedMemory->unlock();
+                sharedMemory->notifyAll();
 
                 if (0 > ::ioctl(videoDevice, VIDIOC_QBUF, &v4l2_buf)) {
                     std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
