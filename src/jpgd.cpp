@@ -3056,7 +3056,7 @@ int jpeg_decoder_mem_stream::read(uint8 *pBuf, int max_bytes_to_read, bool *pEOF
   return max_bytes_to_read;
 }
 
-unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, int *width, int *height, int *actual_comps, int req_comps)
+unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, int *width, int *height, int *actual_comps, int req_comps, bool bgr2rgb, unsigned char *pDestBuffer, int dest_buffer_size)
 {
   if (!actual_comps)
     return NULL;
@@ -3143,13 +3143,17 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
       {
         for (int x = 0; x < image_width; x++)
         {
-//          pDst[0] = pScan_line[x*4+0];
-//          pDst[1] = pScan_line[x*4+1];
-//          pDst[2] = pScan_line[x*4+2];
-          // BGR2RGB
-          pDst[0] = pScan_line[x*4+2];
-          pDst[1] = pScan_line[x*4+1];
-          pDst[2] = pScan_line[x*4+0];
+          if (bgr2rgb) {
+            // BGR2RGB
+            pDst[0] = pScan_line[x*4+2];
+            pDst[1] = pScan_line[x*4+1];
+            pDst[2] = pScan_line[x*4+0];
+          }
+          else {
+            pDst[0] = pScan_line[x*4+0];
+            pDst[1] = pScan_line[x*4+1];
+            pDst[2] = pScan_line[x*4+2];
+          }
           pDst += 3;
         }
       }
@@ -3159,10 +3163,10 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
   return pImage_data;
 }
 
-unsigned char *decompress_jpeg_image_from_memory(const unsigned char *pSrc_data, int src_data_size, int *width, int *height, int *actual_comps, int req_comps)
+unsigned char *decompress_jpeg_image_from_memory(const unsigned char *pSrc_data, int src_data_size, int *width, int *height, int *actual_comps, int req_comps, bool bgr2rgb, unsigned char *pDestBuffer, int dest_buffer_size)
 {
   jpgd::jpeg_decoder_mem_stream mem_stream(pSrc_data, src_data_size);
-  return decompress_jpeg_image_from_stream(&mem_stream, width, height, actual_comps, req_comps);
+  return decompress_jpeg_image_from_stream(&mem_stream, width, height, actual_comps, req_comps, bgr2rgb, pDestBuffer, dest_buffer_size);
 }
 
 unsigned char *decompress_jpeg_image_from_file(const char *pSrc_filename, int *width, int *height, int *actual_comps, int req_comps)
@@ -3170,7 +3174,7 @@ unsigned char *decompress_jpeg_image_from_file(const char *pSrc_filename, int *w
   jpgd::jpeg_decoder_file_stream file_stream;
   if (!file_stream.open(pSrc_filename))
     return NULL;
-  return decompress_jpeg_image_from_stream(&file_stream, width, height, actual_comps, req_comps);
+  return decompress_jpeg_image_from_stream(&file_stream, width, height, actual_comps, req_comps, false, NULL, 0);
 }
 
 } // namespace jpgd

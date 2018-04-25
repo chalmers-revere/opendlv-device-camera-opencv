@@ -69,13 +69,13 @@ void handleSignal(int32_t signal) {
     finalize();
 }
 
-unsigned char* decompress(const unsigned char *src, const uint32_t &srcSize, int *width, int *height, int *actualBytesPerPixel, const uint32_t &requestedBytesPerPixel) {
+unsigned char* decompress(const unsigned char *src, const uint32_t &srcSize, int *width, int *height, int *actualBytesPerPixel, const uint32_t &requestedBytesPerPixel, bool bgr2rgb, unsigned char *pDestBuffer, int dest_buffer_size) {
     unsigned char* imageData = NULL;
 
     if ( (src != NULL) && 
          (srcSize > 0) && 
          (requestedBytesPerPixel > 0) ) {
-        imageData = jpgd::decompress_jpeg_image_from_memory(src, srcSize, width, height, actualBytesPerPixel, requestedBytesPerPixel);
+        imageData = jpgd::decompress_jpeg_image_from_memory(src, srcSize, width, height, actualBytesPerPixel, requestedBytesPerPixel, bgr2rgb, pDestBuffer, dest_buffer_size);
     }
     return imageData;
 }
@@ -91,6 +91,7 @@ int32_t main(int32_t argc, char **argv) {
         std::cerr << "         --width:   desired width of a frame" << std::endl;
         std::cerr << "         --height:  desired height of a frame" << std::endl;
         std::cerr << "         --bpp:     desired bits per pixel of a frame (must be either 8 or 24)" << std::endl;
+        std::cerr << "         --bgr2rgb: convert BGR to RGB" << std::endl;
         std::cerr << "         --name:    when omitted, '/cam0' is chosen" << std::endl;
         std::cerr << "         --verbose: when set, the raw image is displayed" << std::endl;
         std::cerr << "Example: " << argv[0] << " --cid=111 --camera=/dev/video0 --name=cam0" << std::endl;
@@ -127,6 +128,7 @@ int32_t main(int32_t argc, char **argv) {
         const std::string NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
         const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
         const bool VERBOSE{commandlineArguments.count("verbose") != 0};
+        const bool BGR2RGB{commandlineArguments.count("bgr2rgb") != 0};
 
         (void)ID;
 
@@ -263,7 +265,7 @@ int32_t main(int32_t argc, char **argv) {
         if (sharedMemory && sharedMemory->valid()) {
             std::clog << argv[0] << ": Data from camera '" << commandlineArguments["camera"]<< "' available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
 
-            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers](){
+            auto timeTrigger = [&sharedMemory, &VERBOSE, &commandlineArguments, &argv, &videoDevice, &buffers, &BGR2RGB](){
                 struct v4l2_buffer v4l2_buf;
                 ::memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
 
@@ -289,7 +291,7 @@ int32_t main(int32_t argc, char **argv) {
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
-                unsigned char *rawImage = decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel);
+                unsigned char *rawImage = decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, NULL, 0);
 
                 if (NULL == rawImage) {
                     std::cerr << argv[0] << ": Failed to decode video data from: " << commandlineArguments["camera"] << std::endl;
