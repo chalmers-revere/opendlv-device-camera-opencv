@@ -26,6 +26,7 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
         opencv \
         opencv-dev \
         linux-headers \
+        ffmpeg-dev \
         make
 ADD . /opt/sources
 WORKDIR /opt/sources
@@ -43,6 +44,7 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
     echo http://dl-4.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
     apk update && \
     apk --no-cache add \
+        ffmpeg-libs \
         opencv-libs \
         libcanberra-gtk3
 
