@@ -261,7 +261,7 @@ int32_t main(int32_t argc, char **argv) {
             return retCode = 1;
         }
 
-        constexpr uint32_t BUFFER_COUNT{5};
+        constexpr uint32_t BUFFER_COUNT{30};
 
         struct v4l2_requestbuffers v4l2_req_bufs;
         ::memset(&v4l2_req_bufs, 0, sizeof(struct v4l2_requestbuffers));
@@ -357,10 +357,12 @@ std::cerr << "Time trigger." << std::endl;
                 int height = 0;
                 int actualBytesPerPixel = 0;
                 int requestedBytesPerPixel = 3;
+std::cerr << "Got " << bufferSize << " bytes." << std::endl;
 
                 if (0 < bufferSize) {
-std::cerr << "Got " << bufferSize << " isMJPEG(" << isMJPEG << "), isYUYV422(" << isYUYV422 << ")." << std::endl;
+std::cerr << "isMJPEG(" << isMJPEG << "), isYUYV422(" << isYUYV422 << ")." << std::endl;
                     sharedMemory->lock();
+
                     if (isMJPEG) {
                         decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                     }
