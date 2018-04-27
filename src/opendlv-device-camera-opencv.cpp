@@ -420,8 +420,8 @@ int32_t main(int32_t argc, char **argv) {
                             const uint8_t *V = bufferStart + (WIDTH*HEIGHT) + (WIDTH*HEIGHT)/2;
 
                             const size_t Y_STRIDE = WIDTH;
-                            const size_t U_STRIDE = WIDTH;
-                            const size_t V_STRIDE = WIDTH;
+                            const size_t U_STRIDE = WIDTH/2;
+                            const size_t V_STRIDE = WIDTH/2;
 
                             const uint8_t *const inData[3] = {Y, U, V};
                             int inLinesize[3] = {Y_STRIDE, U_STRIDE, V_STRIDE};
