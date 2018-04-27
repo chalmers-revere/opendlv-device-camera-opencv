@@ -426,7 +426,9 @@ int32_t main(int32_t argc, char **argv) {
                             int inLinesize[3] = {Y_STRIDE, UV_STRIDE, UV_STRIDE};
 //                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
                             int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
-                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
+//                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
+                            uint8_t *dst = reinterpret_cast<uint8_t*>(sharedMemory->data());
+                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, &dst, outLinesize);
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
