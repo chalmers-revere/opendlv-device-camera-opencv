@@ -419,11 +419,12 @@ int32_t main(int32_t argc, char **argv) {
                             const uint8_t *U = bufferStart + (WIDTH*HEIGHT);
                             const uint8_t *V = bufferStart + (WIDTH*HEIGHT) + (WIDTH*HEIGHT)/2;
 
-                            const size_t Y_STRIDE = WIDTH + (16-WIDTH%16)%16;
-                            const size_t UV_STRIDE = (WIDTH+1)/2 + (16-((WIDTH+1)/2)%16)%16;
+                            const size_t Y_STRIDE = WIDTH;
+                            const size_t U_STRIDE = WIDTH;
+                            const size_t V_STRIDE = WIDTH;
 
                             const uint8_t *const inData[3] = {Y, U, V};
-                            int inLinesize[3] = {Y_STRIDE, UV_STRIDE, UV_STRIDE};
+                            int inLinesize[3] = {Y_STRIDE, U_STRIDE, V_STRIDE};
 //                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
                             int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
 //                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
