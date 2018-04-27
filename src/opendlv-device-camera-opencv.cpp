@@ -355,8 +355,6 @@ int32_t main(int32_t argc, char **argv) {
 
             // Define timeout for select system call.
             struct timeval timeout {};
-            timeout.tv_sec  = 1;
-            timeout.tv_usec = 0;
             fd_set setOfFiledescriptorsToReadFrom{};
 
             struct SwsContext *yuv2rgbContext = nullptr;
@@ -369,6 +367,8 @@ int32_t main(int32_t argc, char **argv) {
             (void)yuv2rgbContext;
 
             while (isRunning && od4.isRunning()) {
+                timeout.tv_sec  = 1;
+                timeout.tv_usec = 0;
                 FD_ZERO(&setOfFiledescriptorsToReadFrom);
                 FD_SET(videoDevice, &setOfFiledescriptorsToReadFrom);
                 ::select(videoDevice + 1, &setOfFiledescriptorsToReadFrom, nullptr, nullptr, &timeout);
@@ -434,10 +434,6 @@ int32_t main(int32_t argc, char **argv) {
                         std::cerr << argv[0] << ": Could not requeue buffer for capture device: " << commandlineArguments["camera"] << std::endl;
                         return false;
                     }
-                } else {
-                    // Let the operating system yield other threads.
-                    using namespace std::literals::chrono_literals;
-                    std::this_thread::sleep_for(1ms);
                 }
 
             }
