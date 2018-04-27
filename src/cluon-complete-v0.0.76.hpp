@@ -13562,6 +13562,7 @@ inline SharedMemory::~SharedMemory() noexcept {
     if (!m_hasOnlyAttachedToSharedMemory && (-1 != m_fd) && (-1 == ::shm_unlink(m_name.c_str()) && (ENOENT != errno))) {
         std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
     }
+std::cerr << "[cluon::SharedMemory] Closed." << std::endl;
 #endif
 }
 

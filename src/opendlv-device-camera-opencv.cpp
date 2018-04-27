@@ -31,9 +31,7 @@
 # endif
 #endif
 
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/imgproc/imgproc_c.h>
+#include <X11/Xlib.h>
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -288,24 +286,40 @@ int32_t main(int32_t argc, char **argv) {
             struct timeval timeout {};
             fd_set setOfFiledescriptorsToReadFrom{};
 
-            struct SwsContext *yuv2rgbContext = nullptr;
+            struct SwsContext *yuv2rgbContext{nullptr};
             if (BGR2RGB) {
                 yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_BGR24, 0, 0, 0, 0);
             }
             else {
                 yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
             }
-            (void)yuv2rgbContext;
 
-            CvSize size;
-            size.width = WIDTH;
-            size.height = HEIGHT;
+            struct SwsContext *rgb2rgbaContext{nullptr};
+            if (BGR2RGB) {
+                rgb2rgbaContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_BGR24, WIDTH, HEIGHT, AV_PIX_FMT_RGB32, 0, 0, 0, 0);
+            }
+            else {
+                rgb2rgbaContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_RGB24, WIDTH, HEIGHT, AV_PIX_FMT_RGB32, 0, 0, 0, 0);
+            }
 
-            sharedMemory->lock();
-            IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
-            image->imageData = sharedMemory->data();
-            image->imageDataOrigin = image->imageData;
-            sharedMemory->unlock();
+
+            // Low-level X11 data display.
+            char *imageRGBA = static_cast<char*>(malloc(WIDTH*HEIGHT*4));
+            if (nullptr == imageRGBA) {
+                std::cerr << argv[0] << ": Could not allocate memory for RGBA image." << std::endl;
+                return retCode = 1;
+            }
+            Display* display{nullptr};
+            Visual* visual{nullptr};
+            Window window{0};
+            XImage* ximage{nullptr};
+            if (VERBOSE) {
+                display = XOpenDisplay(NULL);
+                visual = DefaultVisual(display, 0);
+                window = XCreateSimpleWindow(display, RootWindow(display, 0), 0, 0, WIDTH, HEIGHT, 1, 0, 0);
+                ximage = XCreateImage(display, visual, 24, ZPixmap, 0, imageRGBA, WIDTH, HEIGHT, 32, 0);
+                XMapWindow(display, window);
+            }
 
             while (isRunning && od4.isRunning()) {
                 timeout.tv_sec  = 1;
@@ -325,8 +339,8 @@ int32_t main(int32_t argc, char **argv) {
                         return false;
                     }
 
-//                    cluon::data::TimeStamp ts;
-//                    ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
+                    cluon::data::TimeStamp ts;
+                    ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
 
                     const uint8_t bufferIndex = v4l2_buf.index;
                     const uint32_t bufferSize = v4l2_buf.bytesused;
@@ -351,8 +365,18 @@ int32_t main(int32_t argc, char **argv) {
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
-                            cvShowImage(sharedMemory->name().c_str(), image);
-                            cvWaitKey(1);
+                            if ( (nullptr != ximage) && (nullptr != display) && (nullptr != rgb2rgbaContext) ) {
+                                // First, transform to RGBA.
+                                uint8_t *src = reinterpret_cast<uint8_t*>(sharedMemory->data());
+                                const uint8_t *const inData[1] = { src };
+                                int inLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
+                                int outLinesize[1] = { static_cast<int>(WIDTH * (BPP/8+1) /* RGBA is 4 pixels */) };
+                                uint8_t *dst = reinterpret_cast<uint8_t*>(imageRGBA);
+                                sws_scale(rgb2rgbaContext, inData, inLinesize, 0, HEIGHT, &dst, outLinesize);
+
+                                // Now, display.
+                                XPutImage(display, window, DefaultGC(display, 0), ximage, 0, 0, 0, 0, WIDTH, HEIGHT);
+                            }
                         }
 
                         sharedMemory->unlock();
@@ -365,9 +389,8 @@ int32_t main(int32_t argc, char **argv) {
                     }
                 }
             }
-
-            if (nullptr != image) {
-                cvReleaseImageHeader(&image);
+            if (VERBOSE) {
+                XCloseDisplay(display);
             }
         }
         else {

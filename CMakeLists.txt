@@ -31,6 +31,8 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# Build a static binary.
+#set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
 # Add further warning levels.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
     -D_XOPEN_SOURCE=700 \
@@ -92,9 +94,9 @@ if(UNIX)
     endif()
 endif()
 
-find_package(OpenCV REQUIRED core highgui imgproc)
-include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-set(LIBRARIES ${LIBRARIES} ${OpenCV_LIBS})
+find_package(X11 REQUIRED)
+include_directories(SYSTEM ${X11_INCLUDE_DIR})
+set(LIBRARIES ${LIBRARIES} ${X11_X11_LIB})
 
 find_package(Libswscale REQUIRED)
 include_directories(SYSTEM ${FFMPEGMODULES_INCLUDE_DIRS})
