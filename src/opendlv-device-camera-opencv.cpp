@@ -90,75 +90,6 @@ unsigned char* decompress(const unsigned char *src, const uint32_t &srcSize, int
 }
 
 
-// Found here: https://gist.github.com/crouchggj/6894292
-int convert_yuv_to_rgb_pixel(int y, int u, int v) {
-    unsigned int pixel32 = 0;
-    unsigned char *pixel = (unsigned char *)&pixel32;
-    int r, g, b;
-    r = static_cast<int>(y + (1.370705 * (v-128)));
-    g = static_cast<int>(y - (0.698001 * (v-128)) - (0.337633 * (u-128)));
-    b = static_cast<int>(y + (1.732446 * (u-128)));
-    if(r > 255) r = 255;
-    if(g > 255) g = 255;
-    if(b > 255) b = 255;
-    if(r < 0) r = 0;
-    if(g < 0) g = 0;
-    if(b < 0) b = 0;
-    pixel[0] = r ;
-    pixel[1] = g ;
-    pixel[2] = b ;
-    return pixel32;
-}
-
-int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height, bool bgr2rgb) {
-    unsigned int in, out = 0;
-    unsigned int pixel_16;
-    unsigned char pixel_24[3];
-    unsigned int pixel32;
-    int y0, u, y1, v;
-
-    for(in = 0; in < width * height * 2; in += 4) {
-        pixel_16 = yuv[in + 3] << 24 |
-                   yuv[in + 2] << 16 |
-                   yuv[in + 1] <<  8 |
-                   yuv[in + 0];
-        y0 = (pixel_16 & 0x000000ff);
-        u  = (pixel_16 & 0x0000ff00) >>  8;
-        y1 = (pixel_16 & 0x00ff0000) >> 16;
-        v  = (pixel_16 & 0xff000000) >> 24;
-        pixel32 = convert_yuv_to_rgb_pixel(y0, u, v);
-        pixel_24[0] = (pixel32 & 0x000000ff);
-        pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
-        pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
-        if (bgr2rgb) {
-            rgb[out++] = pixel_24[2];
-            rgb[out++] = pixel_24[1];
-            rgb[out++] = pixel_24[0];
-        }
-        else {
-            rgb[out++] = pixel_24[0];
-            rgb[out++] = pixel_24[1];
-            rgb[out++] = pixel_24[2];
-        }
-        pixel32 = convert_yuv_to_rgb_pixel(y1, u, v);
-        pixel_24[0] = (pixel32 & 0x000000ff);
-        pixel_24[1] = (pixel32 & 0x0000ff00) >> 8;
-        pixel_24[2] = (pixel32 & 0x00ff0000) >> 16;
-        if (bgr2rgb) {
-            rgb[out++] = pixel_24[2];
-            rgb[out++] = pixel_24[1];
-            rgb[out++] = pixel_24[0];
-        }
-        else {
-            rgb[out++] = pixel_24[0];
-            rgb[out++] = pixel_24[1];
-            rgb[out++] = pixel_24[2];
-        }
-    }
-    return 0;
-}
-
-
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -359,10 +290,10 @@ int32_t main(int32_t argc, char **argv) {
 
             struct SwsContext *yuv2rgbContext = nullptr;
             if (BGR2RGB) {
-                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_BGR24, 0, 0, 0, 0);
             }
             else {
-                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_BGR24, 0, 0, 0, 0);
+                yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUYV422, WIDTH, HEIGHT, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
             }
             (void)yuv2rgbContext;
 
@@ -412,23 +343,9 @@ int32_t main(int32_t argc, char **argv) {
                             decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                         }
                         if (isYUYV422) {
-                            // Old SW converter.
-//                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
-
-//                            const uint8_t *Y = bufferStart;
-//                            const uint8_t *U = bufferStart + (WIDTH*HEIGHT);
-//                            const uint8_t *V = bufferStart + (WIDTH*HEIGHT) + (WIDTH*HEIGHT)/2;
-
-//                            const size_t Y_STRIDE = WIDTH;
-//                            const size_t U_STRIDE = WIDTH/2;
-//                            const size_t V_STRIDE = WIDTH/2;
-
-//                            const uint8_t *const inData[3] = {Y, U, V};
                             const uint8_t *const inData[1] = { bufferStart };
-//                            int inLinesize[3] = {Y_STRIDE, U_STRIDE, V_STRIDE};
                             int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
                             int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
-//                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
                             uint8_t *dst = reinterpret_cast<uint8_t*>(sharedMemory->data());
                             sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, &dst, outLinesize);
                         }
