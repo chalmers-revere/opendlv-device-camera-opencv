@@ -366,6 +366,16 @@ int32_t main(int32_t argc, char **argv) {
             }
             (void)yuv2rgbContext;
 
+            CvSize size;
+            size.width = WIDTH;
+            size.height = HEIGHT;
+
+            sharedMemory->lock();
+            IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
+            image->imageData = sharedMemory->data();
+            image->imageDataOrigin = image->imageData;
+            sharedMemory->unlock();
+
             while (isRunning && od4.isRunning()) {
                 timeout.tv_sec  = 1;
                 timeout.tv_usec = 0;
@@ -384,21 +394,21 @@ int32_t main(int32_t argc, char **argv) {
                         return false;
                     }
 
-                    cluon::data::TimeStamp ts;
-                    ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
+//                    cluon::data::TimeStamp ts;
+//                    ts.seconds(v4l2_buf.timestamp.tv_sec).microseconds(v4l2_buf.timestamp.tv_usec/1000);
 
                     const uint8_t bufferIndex = v4l2_buf.index;
                     const uint32_t bufferSize = v4l2_buf.bytesused;
                     unsigned char *bufferStart = (unsigned char *) buffers[bufferIndex].buf;
-                    int width = 0;
-                    int height = 0;
-                    int actualBytesPerPixel = 0;
-                    int requestedBytesPerPixel = 3;
 
                     if (0 < bufferSize) {
                         sharedMemory->lock();
 
                         if (isMJPEG) {
+                            int width = 0;
+                            int height = 0;
+                            int actualBytesPerPixel = 0;
+                            int requestedBytesPerPixel = 3;
                             decompress(bufferStart, bufferSize, &width, &height, &actualBytesPerPixel, requestedBytesPerPixel, BGR2RGB, reinterpret_cast<unsigned char*>(sharedMemory->data()), sharedMemory->size());
                         }
                         if (isYUYV422) {
@@ -412,18 +422,8 @@ int32_t main(int32_t argc, char **argv) {
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
-                            CvSize size;
-                            size.width = WIDTH;
-                            size.height = HEIGHT;
-
-                            IplImage *image = cvCreateImageHeader(size, IPL_DEPTH_8U, 3);
-                            image->imageData = sharedMemory->data();
-                            image->imageDataOrigin = image->imageData;
-
                             cvShowImage(sharedMemory->name().c_str(), image);
                             cvWaitKey(1);
-
-                            cvReleaseImageHeader(&image);
                         }
 
                         sharedMemory->unlock();
@@ -435,7 +435,10 @@ int32_t main(int32_t argc, char **argv) {
                         return false;
                     }
                 }
+            }
 
+            if (nullptr != image) {
+                cvReleaseImageHeader(&image);
             }
         }
         else {
