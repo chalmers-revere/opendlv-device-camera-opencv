@@ -417,7 +417,7 @@ int32_t main(int32_t argc, char **argv) {
 
                             const uint8_t *Y = bufferStart;
                             const uint8_t *U = bufferStart + (WIDTH*HEIGHT);
-                            const uint8_t *V = bufferStart + (WIDTH*HEIGHT)+((WIDTH+1)/2)*((HEIGHT+1)/2);
+                            const uint8_t *V = bufferStart + (WIDTH*HEIGHT) + (WIDTH*HEIGHT)/2;
 
                             const size_t Y_STRIDE = WIDTH + (16-WIDTH%16)%16;
                             const size_t UV_STRIDE = (WIDTH+1)/2 + (16-((WIDTH+1)/2)%16)%16;
