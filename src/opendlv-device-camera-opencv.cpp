@@ -413,12 +413,20 @@ int32_t main(int32_t argc, char **argv) {
                         }
                         if (isYUYV422) {
                             // Old SW converter.
-                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
+//                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
 
-//                            uint8_t *inData[1] = { static_cast<uint8_t*>(bufferStart) };
+                            const uint8_t *Y = bufferStart;
+                            const uint8_t *U = bufferStart + (WIDTH*HEIGHT);
+                            const uint8_t *V = bufferStart + (WIDTH*HEIGHT)+((WIDTH+1)/2)*((HEIGHT+1)/2);
+
+                            const size_t Y_STRIDE = WIDTH + (16-WIDTH%16)%16;
+                            const size_t UV_STRIDE = (WIDTH+1)/2 + (16-((WIDTH+1)/2)%16)%16;
+
+                            const uint8_t *const inData[3] = {Y, U, V};
+                            int inLinesize[3] = {Y_STRIDE, UV_STRIDE, UV_STRIDE};
 //                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
-//                            int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
-//                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
+                            int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
+                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
