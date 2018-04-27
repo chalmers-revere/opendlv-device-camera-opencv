@@ -366,6 +366,7 @@ int32_t main(int32_t argc, char **argv) {
             else {
                 yuv2rgbContext = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_YUV422P, WIDTH, HEIGHT, AV_PIX_FMT_BGR24, 0, 0, 0, 0);
             }
+            (void)yuv2rgbContext;
 
             while (isRunning && od4.isRunning()) {
                 FD_ZERO(&setOfFiledescriptorsToReadFrom);
@@ -402,12 +403,12 @@ int32_t main(int32_t argc, char **argv) {
                         }
                         if (isYUYV422) {
                             // Old SW converter.
-//                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
+                            convert_yuv_to_rgb_buffer(bufferStart, reinterpret_cast<unsigned char*>(sharedMemory->data()), WIDTH, HEIGHT, BGR2RGB);
 
-                            uint8_t *inData[1] = { static_cast<uint8_t*>(bufferStart) };
-                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
-                            int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
-                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
+//                            uint8_t *inData[1] = { static_cast<uint8_t*>(bufferStart) };
+//                            int inLinesize[1] = { static_cast<int>(WIDTH * 2 /* 2*WIDTH for YUYV 422*/) };
+//                            int outLinesize[1] = { static_cast<int>(WIDTH * BPP/8 /* RGB is 3 pixels */) };
+//                            sws_scale(yuv2rgbContext, inData, inLinesize, 0, HEIGHT, reinterpret_cast<uint8_t* const*>(sharedMemory->data()), outLinesize);
                         }
 
                         if (VERBOSE && (isMJPEG || isYUYV422)) {
