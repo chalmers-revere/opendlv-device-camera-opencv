@@ -63,8 +63,6 @@ static std::atomic<bool> isRunning{true};
 
 void handleSignal(int32_t signal);
 void finalize();
-int convert_yuv_to_rgb_pixel(int y, int u, int v);
-int convert_yuv_to_rgb_buffer(unsigned char *yuv, unsigned char *rgb, unsigned int width, unsigned int height, bool bgr2rgb);
 
 
 void finalize() {
@@ -134,11 +132,9 @@ int32_t main(int32_t argc, char **argv) {
         const uint32_t SIZE{WIDTH * HEIGHT * BPP/8};
         const std::string NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
         const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
+        (void)ID;
         const bool VERBOSE{commandlineArguments.count("verbose") != 0};
         const bool BGR2RGB{commandlineArguments.count("bgr2rgb") != 0};
-
-        (void)ID;
-
 
 
         int videoDevice = open(commandlineArguments["camera"].c_str(), O_RDWR);
@@ -303,7 +299,7 @@ int32_t main(int32_t argc, char **argv) {
             }
 
 
-            // Low-level X11 data display.
+            // Accessing the low-level X11 data display.
             char *imageRGBA = static_cast<char*>(malloc(WIDTH*HEIGHT*4));
             if (nullptr == imageRGBA) {
                 std::cerr << argv[0] << ": Could not allocate memory for RGBA image." << std::endl;

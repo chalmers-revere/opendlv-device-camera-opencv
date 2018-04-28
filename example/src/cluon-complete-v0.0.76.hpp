@@ -1,6 +1,6 @@
 // This is an auto-generated header-only single-file distribution of libcluon.
-// Date: Sat, 21 Apr 2018 23:26:16 +0200
-// Version: 0.0.74
+// Date: Fri, 27 Apr 2018 09:55:30 +0200
+// Version: 0.0.76
 //
 //
 // Implementation of N4562 std::experimental::any (merged into C++17) for C++11 compilers.
@@ -5034,7 +5034,6 @@ namespace cluon {
 // clang-format off
 #ifdef WIN32
     #include <Winsock2.h> // for WSAStartUp
-    #include <Ws2def.h>   // for struct sockaddr_in
     #include <ws2tcpip.h> // for SOCKET
 #else
     #include <netinet/in.h>
@@ -5132,7 +5131,6 @@ class LIBCLUON_API UDPSender {
 // clang-format off
 #ifdef WIN32
     #include <Winsock2.h> // for WSAStartUp
-    #include <Ws2def.h>   // for struct sockaddr_in
     #include <ws2tcpip.h> // for SOCKET
 #else
     #include <netinet/in.h>
@@ -5275,7 +5273,6 @@ class LIBCLUON_API UDPReceiver {
 // clang-format off
 #ifdef WIN32
     #include <Winsock2.h> // for WSAStartUp
-    #include <Ws2def.h>   // for struct sockaddr_in
     #include <ws2tcpip.h> // for SOCKET
 #else
     #include <netinet/in.h>
@@ -9202,10 +9199,7 @@ inline void UDPReceiver::readFromSocket() noexcept {
                                     - static_cast<uint16_t>(UDPPacketSizeConstraints::SIZE_UDP_HEADER);
     std::array<char, MAX_LENGTH> buffer{};
 
-    // Define timeout for select system call.
     struct timeval timeout {};
-    timeout.tv_sec  = 1;
-    timeout.tv_usec = 0;
 
     // Define file descriptor set to watch for read operations.
     fd_set setOfFiledescriptorsToReadFrom{};
@@ -9221,6 +9215,12 @@ inline void UDPReceiver::readFromSocket() noexcept {
     m_readFromSocketThreadRunning.store(true);
 
     while (m_readFromSocketThreadRunning.load()) {
+        // Define timeout for select system call. The timeval struct must be
+        // reinitialized for every select call as it might be modified containing
+        // the actual time slept.
+        timeout.tv_sec  = 0;
+        timeout.tv_usec = 20 * 1000; // Check for new data with 50Hz.
+
         FD_ZERO(&setOfFiledescriptorsToReadFrom);          // NOLINT
         FD_SET(m_socket, &setOfFiledescriptorsToReadFrom); // NOLINT
         ::select(m_socket + 1, &setOfFiledescriptorsToReadFrom, nullptr, nullptr, &timeout);
@@ -9276,10 +9276,6 @@ inline void UDPReceiver::readFromSocket() noexcept {
                     totalBytesRead += bytesRead;
                 }
             } while (!m_isBlockingSocket && (bytesRead > 0));
-        } else {
-            // Let the operating system yield other threads.
-            using namespace std::literals::chrono_literals; // NOLINT
-            std::this_thread::sleep_for(1ms);
         }
 
         if (static_cast<int32_t>(totalBytesRead) > 0) {
@@ -9465,10 +9461,7 @@ inline void TCPConnection::readFromSocket() noexcept {
     constexpr uint16_t MAX_LENGTH{65535};
     std::array<char, MAX_LENGTH> buffer{};
 
-    // Define timeout for select system call.
     struct timeval timeout {};
-    timeout.tv_sec  = 0;
-    timeout.tv_usec = 20 * 1000; // Check for new data with 50Hz.
 
     // Define file descriptor set to watch for read operations.
     fd_set setOfFiledescriptorsToReadFrom{};
@@ -9478,6 +9471,12 @@ inline void TCPConnection::readFromSocket() noexcept {
     m_readFromSocketThreadRunning.store(true);
 
     while (m_readFromSocketThreadRunning.load()) {
+        // Define timeout for select system call. The timeval struct must be
+        // reinitialized for every select call as it might be modified containing
+        // the actual time slept.
+        timeout.tv_sec  = 0;
+        timeout.tv_usec = 20 * 1000; // Check for new data with 50Hz.
+
         FD_ZERO(&setOfFiledescriptorsToReadFrom);
         FD_SET(m_socket, &setOfFiledescriptorsToReadFrom);
         ::select(m_socket + 1, &setOfFiledescriptorsToReadFrom, nullptr, nullptr, &timeout);
@@ -9510,10 +9509,6 @@ inline void TCPConnection::readFromSocket() noexcept {
                 // Call newDataDelegate.
                 m_newDataDelegate(std::string(buffer.data(), static_cast<size_t>(bytesRead)), timestamp);
             }
-        } else {
-            // Let the operating system yield other threads.
-            using namespace std::literals::chrono_literals;
-            std::this_thread::sleep_for(1ms);
         }
     }
 }
@@ -13567,6 +13562,7 @@ inline SharedMemory::~SharedMemory() noexcept {
     if (!m_hasOnlyAttachedToSharedMemory && (-1 != m_fd) && (-1 == ::shm_unlink(m_name.c_str()) && (ENOENT != errno))) {
         std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
     }
+std::cerr << "[cluon::SharedMemory] Closed." << std::endl;
 #endif
 }
 
