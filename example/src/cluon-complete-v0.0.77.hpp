@@ -1,6 +1,6 @@
 // This is an auto-generated header-only single-file distribution of libcluon.
-// Date: Sun, 29 Apr 2018 21:22:30 +0200
-// Version: 0.0.76
+// Date: Sun, 29 Apr 2018 21:58:12 +0200
+// Version: 0.0.77
 //
 //
 // Implementation of N4562 std::experimental::any (merged into C++17) for C++11 compilers.
@@ -8851,13 +8851,13 @@ inline void cluon_handleExit() {
     TerminateHandler::instance().isTerminated.store(true);
 }
 
-inline void cluon_handleSignal(int32_t /*signal*/) {
-    TerminateHandler::instance().isTerminated.store(true);
+inline void cluon_handleSignal(int32_t /*signal*/) { // LCOV_EXCL_LINE
+    TerminateHandler::instance().isTerminated.store(true); // LCOV_EXCL_LINE
 }
 
 inline TerminateHandler::TerminateHandler() noexcept {
     if (0 != std::atexit(cluon_handleExit)) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register cluon_exitHandler()." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register cluon_exitHandler()." << std::endl; // LCOV_EXCL_LINE
     }
 
 #ifdef WIN32
@@ -8872,10 +8872,10 @@ inline TerminateHandler::TerminateHandler() noexcept {
     m_signalHandler.sa_handler = &cluon_handleSignal;
 
     if (::sigaction(SIGINT, &m_signalHandler, NULL) < 0) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl; // LCOV_EXCL_LINE
     }
     if (::sigaction(SIGTERM, &m_signalHandler, NULL) < 0) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl; // LCOV_EXCL_LINE
     }
 #endif
 }

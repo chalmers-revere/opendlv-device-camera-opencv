@@ -20,7 +20,7 @@ project(opendlv-device-camera-opencv)
 ################################################################################
 # Defining the relevant versions of OpenDLV Standard Message Set and libcluon.
 set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.1.odvd)
-set(CLUON_COMPLETE cluon-complete-v0.0.76.hpp)
+set(CLUON_COMPLETE cluon-complete-v0.0.77.hpp)
 
 ################################################################################
 # Set the search path for .cmake files.

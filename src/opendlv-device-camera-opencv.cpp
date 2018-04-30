@@ -56,24 +56,6 @@ extern "C" {
 #include <string>
 #include <thread>
 
-#include <csignal>
-
-struct sigaction signalHandler;
-static std::atomic<bool> isRunning{true};
-
-void handleSignal(int32_t signal);
-void finalize();
-
-
-void finalize() {
-    isRunning.store(false);
-}
-
-void handleSignal(int32_t signal) {
-    (void) signal;
-    finalize();
-}
-
 unsigned char* decompress(const unsigned char *src, const uint32_t &srcSize, int *width, int *height, int *actualBytesPerPixel, const uint32_t &requestedBytesPerPixel, bool bgr2rgb, unsigned char *pDestBuffer, int dest_buffer_size) {
     unsigned char* imageData = NULL;
 
@@ -103,19 +85,6 @@ int32_t main(int32_t argc, char **argv) {
         retCode = 1;
     }
     else {
-        {
-            atexit(finalize);
-            ::memset(&signalHandler, 0, sizeof(signalHandler));
-            signalHandler.sa_handler = &handleSignal;
-
-            if (::sigaction(SIGINT, &signalHandler, NULL) < 0) {
-                std::cerr << argv[0] << ": Failed to register signal SIGINT." << std::endl;
-            }
-            if (::sigaction(SIGTERM, &signalHandler, NULL) < 0) {
-                std::cerr << argv[0] << ": Failed to register signal SIGTERM." << std::endl;
-            }
-        }
-
         const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
         const uint32_t HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
         const uint32_t BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
@@ -317,7 +286,7 @@ int32_t main(int32_t argc, char **argv) {
                 XMapWindow(display, window);
             }
 
-            while (isRunning && od4.isRunning()) {
+            while (od4.isRunning()) {
                 timeout.tv_sec  = 1;
                 timeout.tv_usec = 0;
                 FD_ZERO(&setOfFiledescriptorsToReadFrom);

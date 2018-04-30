@@ -1,5 +1,5 @@
 // This is an auto-generated header-only single-file distribution of libcluon.
-// Date: Fri, 27 Apr 2018 09:55:30 +0200
+// Date: Sun, 29 Apr 2018 21:22:30 +0200
 // Version: 0.0.76
 //
 //
@@ -4978,6 +4978,66 @@ class LIBCLUON_API MessageParser {
 
 #endif
 /*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef CLUON_TERMINATEHANDLER_HPP
+#define CLUON_TERMINATEHANDLER_HPP
+
+//#include "cluon/cluon.hpp"
+
+#include <signal.h>
+
+#include <atomic>
+
+namespace cluon {
+
+class LIBCLUON_API TerminateHandler {
+   private:
+    TerminateHandler(const TerminateHandler &) = delete;
+    TerminateHandler(TerminateHandler &&)      = delete;
+    TerminateHandler &operator=(const TerminateHandler &) = delete;
+    TerminateHandler &operator=(TerminateHandler &&) = delete;
+
+   public:
+    /**
+     * Define singleton behavior using static initializer (cf. http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2011/n3242.pdf, Sec. 6.7.4).
+     * @return singleton for an instance of this class.
+     */
+    static TerminateHandler& instance() noexcept {
+        static TerminateHandler instance;
+        return instance;
+    }
+
+    ~TerminateHandler() = default;
+
+   public:
+    std::atomic<bool> isTerminated{false};
+
+   private:
+    TerminateHandler() noexcept;
+
+#ifndef WIN32
+    struct sigaction m_signalHandler{};
+#endif
+};
+} // namespace cluon
+
+#endif
+/*
  * Copyright (C) 2017-2018  Christian Berger
  *
  * This program is free software: you can redistribute it and/or modify
@@ -8763,6 +8823,66 @@ inline std::pair<std::vector<MetaMessage>, MessageParser::MessageParserErrorCode
 }
 } // namespace cluon
 /*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+//#include "cluon/TerminateHandler.hpp"
+
+#include <cstring>
+#include <cstdlib>
+#include <iostream>
+
+namespace cluon {
+
+inline void cluon_handleExit() {
+    TerminateHandler::instance().isTerminated.store(true);
+}
+
+inline void cluon_handleSignal(int32_t /*signal*/) {
+    TerminateHandler::instance().isTerminated.store(true);
+}
+
+inline TerminateHandler::TerminateHandler() noexcept {
+    if (0 != std::atexit(cluon_handleExit)) {
+        std::cerr << "[cluon::TerminateHandler] Failed to register cluon_exitHandler()." << std::endl;
+    }
+
+#ifdef WIN32
+    if (SIG_ERR == ::signal(SIGINT, &cluon_handleSignal)) {
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl;
+    }
+    if (SIG_ERR == ::signal(SIGTERM, &cluon_handleSignal)) {
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl;
+    }
+#else
+    std::memset(&m_signalHandler, 0, sizeof(m_signalHandler));
+    m_signalHandler.sa_handler = &cluon_handleSignal;
+
+    if (::sigaction(SIGINT, &m_signalHandler, NULL) < 0) {
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl;
+    }
+    if (::sigaction(SIGTERM, &m_signalHandler, NULL) < 0) {
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl;
+    }
+#endif
+}
+
+} // namespace cluon
+
+/*
  * Copyright (C) 2017-2018  Christian Berger
  *
  * This program is free software: you can redistribute it and/or modify
@@ -8895,6 +9015,7 @@ inline std::pair<ssize_t, int32_t> UDPSender::send(std::string &&data) const noe
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#include "cluon/TerminateHandler.hpp"
 //#include "cluon/UDPReceiver.hpp"
 //#include "cluon/UDPPacketSizeConstraints.hpp"
 
@@ -9149,7 +9270,7 @@ inline void UDPReceiver::closeSocket(int errorCode) noexcept {
 }
 
 inline bool UDPReceiver::isRunning() const noexcept {
-    return m_readFromSocketThreadRunning.load();
+    return (m_readFromSocketThreadRunning.load() && !TerminateHandler::instance().isTerminated.load());
 }
 
 inline void UDPReceiver::processPipeline() noexcept {
@@ -9302,6 +9423,7 @@ inline void UDPReceiver::readFromSocket() noexcept {
  */
 
 //#include "cluon/TCPConnection.hpp"
+//#include "cluon/TerminateHandler.hpp"
 
 // clang-format off
 #ifdef WIN32
@@ -9429,7 +9551,7 @@ inline void TCPConnection::closeSocket(int errorCode) noexcept {
 }
 
 inline bool TCPConnection::isRunning() const noexcept {
-    return m_readFromSocketThreadRunning.load();
+    return (m_readFromSocketThreadRunning.load() && !TerminateHandler::instance().isTerminated.load());
 }
 
 inline std::pair<ssize_t, int32_t> TCPConnection::send(std::string &&data) const noexcept {
@@ -12511,6 +12633,7 @@ inline void ToMsgPackVisitor::visit(uint32_t id, std::string &&typeName, std::st
 //#include "cluon/OD4Session.hpp"
 //#include "cluon/Envelope.hpp"
 //#include "cluon/FromProtoVisitor.hpp"
+//#include "cluon/TerminateHandler.hpp"
 //#include "cluon/Time.hpp"
 
 #include <iostream>
@@ -12528,7 +12651,7 @@ inline OD4Session::OD4Session(uint16_t CID, std::function<void(cluon::data::Enve
     m_receiver = std::make_unique<cluon::UDPReceiver>(
         "225.0.0." + std::to_string(CID), 12175, [this](std::string &&data, std::string &&from, std::chrono::system_clock::time_point &&timepoint) {
             this->callback(std::move(data), std::move(from), std::move(timepoint));
-        });
+    });
 }
 
 inline void OD4Session::timeTrigger(float freq, std::function<bool()> delegate) noexcept {
@@ -12556,7 +12679,7 @@ inline void OD4Session::timeTrigger(float freq, std::function<bool()> delegate) 
             } else {
                 std::cerr << "[cluon::OD4Session]: time-triggered delegate violated allocated time slice." << std::endl;
             }
-        } while (delegateIsRunning);
+        } while (delegateIsRunning && !TerminateHandler::instance().isTerminated.load());
     }
 }
 
@@ -13562,7 +13685,6 @@ inline SharedMemory::~SharedMemory() noexcept {
     if (!m_hasOnlyAttachedToSharedMemory && (-1 != m_fd) && (-1 == ::shm_unlink(m_name.c_str()) && (ENOENT != errno))) {
         std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
     }
-std::cerr << "[cluon::SharedMemory] Closed." << std::endl;
 #endif
 }
 

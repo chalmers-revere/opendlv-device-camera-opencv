@@ -28,25 +28,6 @@
 #include <string>
 #include <thread>
 
-#include <csignal>
-
-struct sigaction signalHandler;
-static std::atomic<bool> isRunning{true};
-
-void handleSignal(int32_t signal);
-void finalize();
-
-void finalize() {
-    std::cout << "Terminate" << std::endl;
-    isRunning.store(false);
-}
-
-void handleSignal(int32_t signal) {
-    (void) signal;
-    finalize();
-}
-
-
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{0};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -62,19 +43,6 @@ int32_t main(int32_t argc, char **argv) {
         retCode = 1;
     }
     else {
-        {
-            atexit(finalize);
-            ::memset(&signalHandler, 0, sizeof(signalHandler));
-            signalHandler.sa_handler = &handleSignal;
-
-            if (::sigaction(SIGINT, &signalHandler, NULL) < 0) {
-                std::cerr << argv[0] << ": Failed to register signal SIGINT." << std::endl;
-            }
-            if (::sigaction(SIGTERM, &signalHandler, NULL) < 0) {
-                std::cerr << argv[0] << ": Failed to register signal SIGTERM." << std::endl;
-            }
-        }
-
         const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
         const uint32_t HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
         const uint32_t BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
@@ -108,7 +76,7 @@ int32_t main(int32_t argc, char **argv) {
                 image->imageDataOrigin = image->imageData;
                 sharedMemory->unlock();
 
-                while (od4.isRunning() && isRunning) {
+                while (od4.isRunning()) {
                     // The shared memory uses a pthread broadcast to notify us; just sleep to get awaken up.
                     sharedMemory->wait();
                     sharedMemory->lock();
