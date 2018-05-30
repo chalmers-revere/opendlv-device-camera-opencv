@@ -1,6 +1,6 @@
 // This is an auto-generated header-only single-file distribution of libcluon.
-// Date: Sun, 29 Apr 2018 21:22:30 +0200
-// Version: 0.0.76
+// Date: Wed, 23 May 2018 22:00:36 +0200
+// Version: 0.0.99
 //
 //
 // Implementation of N4562 std::experimental::any (merged into C++17) for C++11 compilers.
@@ -264,7 +264,10 @@ private: // Storage and Virtual Method Table
 
         static void swap(storage_union& lhs, storage_union& rhs) noexcept
         {
-            std::swap(reinterpret_cast<T&>(lhs.stack), reinterpret_cast<T&>(rhs.stack));
+            storage_union tmp_storage;
+            move(rhs, tmp_storage);
+            move(lhs, rhs);
+            move(tmp_storage, lhs);
         }
     };
 
@@ -3745,8 +3748,8 @@ class LIB_API TimeStamp {
         TimeStamp() = default;
         TimeStamp(const TimeStamp&) = default;
         TimeStamp& operator=(const TimeStamp&) = default;
-        TimeStamp(TimeStamp&&) noexcept = default; // NOLINT
-        TimeStamp& operator=(TimeStamp&&) noexcept = default; // NOLINT
+        TimeStamp(TimeStamp&&) = default; // NOLINT
+        TimeStamp& operator=(TimeStamp&&) = default; // NOLINT
         ~TimeStamp() = default;
 
     public:
@@ -3909,8 +3912,8 @@ class LIB_API Envelope {
         Envelope() = default;
         Envelope(const Envelope&) = default;
         Envelope& operator=(const Envelope&) = default;
-        Envelope(Envelope&&) noexcept = default; // NOLINT
-        Envelope& operator=(Envelope&&) noexcept = default; // NOLINT
+        Envelope(Envelope&&) = default; // NOLINT
+        Envelope& operator=(Envelope&&) = default; // NOLINT
         ~Envelope() = default;
 
     public:
@@ -4109,8 +4112,8 @@ class LIB_API PlayerCommand {
         PlayerCommand() = default;
         PlayerCommand(const PlayerCommand&) = default;
         PlayerCommand& operator=(const PlayerCommand&) = default;
-        PlayerCommand(PlayerCommand&&) noexcept = default; // NOLINT
-        PlayerCommand& operator=(PlayerCommand&&) noexcept = default; // NOLINT
+        PlayerCommand(PlayerCommand&&) = default; // NOLINT
+        PlayerCommand& operator=(PlayerCommand&&) = default; // NOLINT
         ~PlayerCommand() = default;
 
     public:
@@ -4273,8 +4276,8 @@ class LIB_API PlayerStatus {
         PlayerStatus() = default;
         PlayerStatus(const PlayerStatus&) = default;
         PlayerStatus& operator=(const PlayerStatus&) = default;
-        PlayerStatus(PlayerStatus&&) noexcept = default; // NOLINT
-        PlayerStatus& operator=(PlayerStatus&&) noexcept = default; // NOLINT
+        PlayerStatus(PlayerStatus&&) = default; // NOLINT
+        PlayerStatus& operator=(PlayerStatus&&) = default; // NOLINT
         ~PlayerStatus() = default;
 
     public:
@@ -4639,6 +4642,8 @@ inline cluon::data::TimeStamp now() noexcept {
 
     // Link against ws2_32.lib for networking.
     #pragma comment(lib, "ws2_32.lib")
+    // Link against iphlpapi.lib for address resolving.
+    #pragma comment(lib, "iphlpapi.lib")
 
     // Avoid include definitions from Winsock v1.
     #define WIN32_LEAN_AND_MEAN
@@ -4814,7 +4819,7 @@ class LIBCLUON_API MetaMessage {
     };
 
    public:
-    MetaMessage()                    = default;
+    MetaMessage() noexcept;
     MetaMessage(const MetaMessage &) = default;
     MetaMessage(MetaMessage &&)      = default;
     MetaMessage &operator=(const MetaMessage &) = default;
@@ -4999,9 +5004,8 @@ class LIBCLUON_API MessageParser {
 
 //#include "cluon/cluon.hpp"
 
-#include <signal.h>
-
 #include <atomic>
+#include <csignal>
 
 namespace cluon {
 
@@ -5017,7 +5021,7 @@ class LIBCLUON_API TerminateHandler {
      * Define singleton behavior using static initializer (cf. http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2011/n3242.pdf, Sec. 6.7.4).
      * @return singleton for an instance of this class.
      */
-    static TerminateHandler& instance() noexcept {
+    static TerminateHandler &instance() noexcept {
         static TerminateHandler instance;
         return instance;
     }
@@ -5031,7 +5035,7 @@ class LIBCLUON_API TerminateHandler {
     TerminateHandler() noexcept;
 
 #ifndef WIN32
-    struct sigaction m_signalHandler{};
+    struct sigaction m_signalHandler {};
 #endif
 };
 } // namespace cluon
@@ -5158,9 +5162,16 @@ class LIBCLUON_API UDPSender {
      */
     std::pair<ssize_t, int32_t> send(std::string &&data) const noexcept;
 
+   public:
+    /**
+     * @return Port that this UDP sender will use for sending or 0 if no information available.
+     */
+    uint16_t getSendFromPort() const noexcept;
+
    private:
     mutable std::mutex m_socketMutex{};
     int32_t m_socket{-1};
+    uint16_t m_portToSentFrom{0};
     struct sockaddr_in m_sendToAddress {};
 };
 } // namespace cluon
@@ -5204,6 +5215,7 @@ class LIBCLUON_API UDPSender {
 #include <chrono>
 #include <functional>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -5259,10 +5271,12 @@ class LIBCLUON_API UDPReceiver {
      * @param receiveFromAddress Numerical IPv4 address to receive UDP packets from.
      * @param receiveFromPort Port to receive UDP packets from.
      * @param delegate Functional (noexcept) to handle received bytes; parameters are received data, sender, timestamp.
+     * @param localSendFromPort Port that an application is using to send data. This port (> 0) is ignored when data is received.
      */
     UDPReceiver(const std::string &receiveFromAddress,
                 uint16_t receiveFromPort,
-                std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point &&)> delegate) noexcept;
+                std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point &&)> delegate,
+                uint16_t localSendFromPort = 0) noexcept;
     ~UDPReceiver() noexcept;
 
     /**
@@ -5285,16 +5299,24 @@ class LIBCLUON_API UDPReceiver {
    private:
     int32_t m_socket{-1};
     bool m_isBlockingSocket{true};
+    std::set<unsigned long> m_listOfLocalIPAddresses{};
+    uint16_t m_localSendFromPort;
     struct sockaddr_in m_receiveFromAddress {};
     struct ip_mreq m_mreq {};
     bool m_isMulticast{false};
+
     std::atomic<bool> m_readFromSocketThreadRunning{false};
     std::thread m_readFromSocketThread{};
 
+   private:
+    std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point)> m_delegate{};
+
+   private:
     std::atomic<bool> m_pipelineThreadRunning{false};
     std::thread m_pipelineThread{};
     std::mutex m_pipelineMutex{};
     std::condition_variable m_pipelineCondition{};
+
     class PipelineEntry {
        public:
         std::string m_data;
@@ -5302,8 +5324,6 @@ class LIBCLUON_API UDPReceiver {
         std::chrono::system_clock::time_point m_sampleTime;
     };
     std::deque<PipelineEntry> m_pipeline{};
-
-    std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point)> m_delegate{};
 };
 } // namespace cluon
 
@@ -5446,8 +5466,10 @@ class LIBCLUON_API TCPConnection {
     mutable std::mutex m_socketMutex{};
     int32_t m_socket{-1};
     struct sockaddr_in m_address {};
+
     std::atomic<bool> m_readFromSocketThreadRunning{false};
     std::thread m_readFromSocketThread{};
+
     std::function<void(std::string &&, std::chrono::system_clock::time_point)> m_newDataDelegate{};
     std::function<void()> m_connectionLostDelegate{};
 };
@@ -6229,8 +6251,16 @@ class LIBCLUON_API FromJSONVisitor {
         }
     }
 
-   private:
+   public:
+    /**
+     * This method returns the base64-decoded representation for the given input.
+     *
+     * @param input to decode from base64
+     * @return Decoded input.
+     */
     std::string decodeBase64(const std::string &input) const noexcept;
+
+   private:
     std::map<std::string, FromJSONVisitor::JSONKeyValue> readKeyValues(std::string &input) noexcept;
 
    private:
@@ -6260,6 +6290,7 @@ class LIBCLUON_API FromJSONVisitor {
 #ifndef CLUON_TOJSONVISITOR_HPP
 #define CLUON_TOJSONVISITOR_HPP
 
+//#include "cluon/any/any.hpp"
 //#include "cluon/cluon.hpp"
 
 #include <cstdint>
@@ -6329,12 +6360,16 @@ class LIBCLUON_API ToJSONVisitor {
     void visit(uint32_t &id, std::string &&typeName, std::string &&name, T &value) noexcept {
         (void)typeName;
         if ((0 == m_mask.count(id)) || m_mask[id]) {
-            ToJSONVisitor jsonVisitor;
-            value.accept(jsonVisitor);
-            m_buffer << '\"' << name << '\"' << ':' << jsonVisitor.json() << ',' << '\n';
+            try {
+                ToJSONVisitor jsonVisitor;
+                value.accept(jsonVisitor);
+                m_buffer << '\"' << name << '\"' << ':' << jsonVisitor.json() << ',' << '\n';
+            } catch (const linb::bad_any_cast &) { // LCOV_EXCL_LINE
+            }
         }
     }
 
+   public:
     /**
      * This method returns the base64-encoded representation for the given input.
      *
@@ -6814,7 +6849,6 @@ class LIBCLUON_API ToMsgPackVisitor {
 //#include "cluon/ToProtoVisitor.hpp"
 //#include "cluon/cluonDataStructures.hpp"
 
-#include <array>
 #include <cstring>
 #include <istream>
 #include <sstream>
@@ -6834,24 +6868,30 @@ namespace cluon {
 inline std::string serializeEnvelope(cluon::data::Envelope &&envelope) noexcept {
     std::string dataToSend;
     {
+        std::stringstream sstr;
+
         cluon::ToProtoVisitor protoEncoder;
         envelope.accept(protoEncoder);
 
         const std::string tmp{protoEncoder.encodedData()};
         uint32_t length{static_cast<uint32_t>(tmp.size())};
+        length <<= 8;
         length = htole32(length);
 
-        // Add OpenDaVINCI header.
-        std::array<char, 5> header;
-        header[0] = static_cast<char>(0x0D);
-        header[1] = static_cast<char>(0xA4);
-        header[2] = *(reinterpret_cast<char *>(&length) + 0);
-        header[3] = *(reinterpret_cast<char *>(&length) + 1);
-        header[4] = *(reinterpret_cast<char *>(&length) + 2);
+        // Add OD4 header.
+        constexpr unsigned char OD4_HEADER_BYTE0 = 0x0D;
+        constexpr unsigned char OD4_HEADER_BYTE1 = 0xA4;
+        sstr.put(static_cast<char>(OD4_HEADER_BYTE0));
+        auto posByte1 = sstr.tellp();
+        sstr.write(reinterpret_cast<char *>(&length), static_cast<std::streamsize>(sizeof(uint32_t)));
+        auto posByte5 = sstr.tellp();
+        sstr.seekp(posByte1);
+        sstr.put(static_cast<char>(OD4_HEADER_BYTE1));
+        sstr.seekp(posByte5);
 
-        std::stringstream sstr;
-        sstr.write(header.data(), static_cast<std::streamsize>(header.size()));
+        // Write payload.
         sstr.write(tmp.data(), static_cast<std::streamsize>(tmp.size()));
+
         dataToSend = sstr.str();
     }
     return dataToSend;
@@ -7666,7 +7706,8 @@ namespace cluon {
 /**
 This class provides an interface to an OpenDaVINCI v4 session. An OpenDaVINCI
 v4 session allows the automatic exchange of time-stamped Envelopes carrying
-user-defined messages usually using UDP multicast.
+user-defined messages usually using UDP multicast. A running OD4Session will not
+receive the bytes that itself has sent to other microservices.
 
 There are two ways to participate in an OpenDaVINCI session. Variant A is simply
 calling a user-supplied lambda whenever a new Envelope is received:
@@ -7825,6 +7866,7 @@ class LIBCLUON_API OD4Session {
 #ifndef CLUON_PLAYER_HPP
 #define CLUON_PLAYER_HPP
 
+//#include "cluon/cluon.hpp"
 //#include "cluon/cluonDataStructures.hpp"
 
 #include <cstdint>
@@ -7841,25 +7883,25 @@ class LIBCLUON_API OD4Session {
 namespace cluon {
 
 class LIBCLUON_API IndexEntry {
-    public:
-        IndexEntry() noexcept;
-        IndexEntry(const int64_t &sampleTimeStamp, const uint64_t &filePosition) noexcept;
+   public:
+    IndexEntry() = default;
+    IndexEntry(const int64_t &sampleTimeStamp, const uint64_t &filePosition) noexcept;
 
-    public:
-        int64_t m_sampleTimeStamp;
-        uint64_t m_filePosition;
-        bool m_available;
+   public:
+    int64_t m_sampleTimeStamp{0};
+    uint64_t m_filePosition{0};
+    bool m_available{0};
 };
 
 class LIBCLUON_API Player {
-    private:
-        enum {
-            ONE_MILLISECOND_IN_MICROSECONDS = 1000,
-            ONE_SECOND_IN_MICROSECONDS = 1000 * ONE_MILLISECOND_IN_MICROSECONDS,
-            MAX_DELAY_IN_MICROSECONDS = 1 * ONE_SECOND_IN_MICROSECONDS,
-            LOOK_AHEAD_IN_S = 30,
-            MIN_ENTRIES_FOR_LOOK_AHEAD = 5000,
-        };
+   private:
+    enum {
+        ONE_MILLISECOND_IN_MICROSECONDS = 1000,
+        ONE_SECOND_IN_MICROSECONDS      = 1000 * ONE_MILLISECOND_IN_MICROSECONDS,
+        MAX_DELAY_IN_MICROSECONDS       = 1 * ONE_SECOND_IN_MICROSECONDS,
+        LOOK_AHEAD_IN_S                 = 30,
+        MIN_ENTRIES_FOR_LOOK_AHEAD      = 5000,
+    };
 
    private:
     Player(const Player &) = delete;
@@ -7867,167 +7909,161 @@ class LIBCLUON_API Player {
     Player &operator=(Player &&) = delete;
     Player &operator=(const Player &other) = delete;
 
-    public:
-        /**
-         * Constructor.
-         *
-         * @param file File to play.
-         * @param autoRewind True if the file should be rewind at EOF.
-         * @param threading If set to true, player will load new envelopes from the files in background.
-         */
-        Player(const std::string &file, const bool &autoRewind, const bool &threading) noexcept;
-        ~Player();
+   public:
+    /**
+     * Constructor.
+     *
+     * @param file File to play.
+     * @param autoRewind True if the file should be rewind at EOF.
+     * @param threading If set to true, player will load new envelopes from the files in background.
+     */
+    Player(const std::string &file, const bool &autoRewind, const bool &threading) noexcept;
+    ~Player();
 
-        /**
-         * @return Pair of bool and next cluon::data::Envelope to be replayed;
-         *         if bool is false, no next Envelope is available.
-         */
-        std::pair<bool, cluon::data::Envelope> getNextEnvelopeToBeReplayed() noexcept;
+    /**
+     * @return Pair of bool and next cluon::data::Envelope to be replayed;
+     *         if bool is false, no next Envelope is available.
+     */
+    std::pair<bool, cluon::data::Envelope> getNextEnvelopeToBeReplayed() noexcept;
 
-        /**
-         * @return real delay in microseconds to be waited before the next cluon::data::Envelope should be delivered.
-         */
-        uint32_t getDelay() const noexcept;
+    /**
+     * @return real delay in microseconds to be waited before the next cluon::data::Envelope should be delivered.
+     */
+    uint32_t delay() const noexcept;
 
-        /**
-         * @return delay in microseconds to be waited before the next cluon::data::Envelope should be delivered correct by the internal processing time.
-         */
-        uint32_t getCorrectedDelay() const noexcept;
+    /**
+     * @return true if there is more data to replay.
+     */
+    bool hasMoreData() const noexcept;
 
-        /**
-         * @return true if there is more data to replay.
-         */
-        bool hasMoreData() const noexcept;
+    /**
+     * This method rewinds the iterators.
+     */
+    void rewind() noexcept;
 
-        /**
-         * This method rewinds the iterators.
-         */
-        void rewind() noexcept;
+    void seekTo(float ratio) noexcept;
 
-        void seekTo(float ratio) noexcept;
+    /**
+     * @return total amount of cluon::data::Envelopes in the .rec file.
+     */
+    uint32_t totalNumberOfEnvelopesInRecFile() const noexcept;
 
-        /**
-         * @return total amount of cluon::data::Envelopes in the .rec file.
-         */
-        uint32_t getTotalNumberOfEnvelopesInRecFile() const noexcept;
+   private:
+    // Internal methods without Lock.
+    bool hasMoreDataFromRecFile() const noexcept;
 
-    private:
-        // Internal methods without Lock.
-        bool hasMoreDataFromRecFile() const noexcept;
+    /**
+     * This method initializes the global index where the sample
+     * time stamps are sorted chronocally and mapped to the
+     * corresponding cluon::data::Envelope in the rec file.
+     */
+    void initializeIndex() noexcept;
 
-        /**
-         * This method initializes the global index where the sample
-         * time stamps are sorted chronocally and mapped to the 
-         * corresponding cluon::data::Envelope in the rec file.
-         */
-        void initializeIndex() noexcept;
+    /**
+     * This method computes the initially required amount of
+     * cluon::data::Envelope in the cache and fill the cache accordingly.
+     */
+    void computeInitialCacheLevelAndFillCache() noexcept;
 
-        /**
-         * This method computes the initially required amount of
-         * cluon::data::Envelope in the cache and fill the cache accordingly.
-         */
-        void computeInitialCacheLevelAndFillCache() noexcept;
+    /**
+     * This method clears all caches.
+     */
+    void resetCaches() noexcept;
 
-        /**
-         * This method clears all caches.
-         */
-        void resetCaches() noexcept;
+    /**
+     * This method resets the iterators.
+     */
+    inline void resetIterators() noexcept;
 
-        /**
-         * This method resets the iterators.
-         */
-        inline void resetIterators() noexcept;
+    /**
+     * This method fills the cache by trying to read up
+     * to maxNumberOfEntriesToReadFromFile from the rec file.
+     *
+     * @param maxNumberOfEntriesToReadFromFile Maximum number of entries to be read from file.
+     * @return Number of entries read from file.
+     */
+    uint32_t fillEnvelopeCache(const uint32_t &maxNumberOfEntriesToReadFromFile) noexcept;
 
-        /**
-         * This method fills the cache by trying to read up
-         * to maxNumberOfEntriesToReadFromFile from the rec file.
-         *
-         * @param maxNumberOfEntriesToReadFromFile Maximum number of entries to be read from file.
-         * @return Number of entries read from file.
-         */
-        uint32_t fillEnvelopeCache(const uint32_t &maxNumberOfEntriesToReadFromFile) noexcept;
+    /**
+     * This method checks the availability of the next cluon::data::Envelope
+     * to be replayed from the cache.
+     */
+    inline void checkAvailabilityOfNextEnvelopeToBeReplayed() noexcept;
 
-        /**
-         * This method checks the availability of the next cluon::data::Envelope
-         * to be replayed from the cache.
-         */
-        inline void checkAvailabilityOfNextEnvelopeToBeReplayed() noexcept;
+   private: // Data for the Player.
+    bool m_threading;
 
-    private: // Data for the Player.
-        bool m_threading;
+    std::string m_file;
 
-        std::string m_file;
+    // Handle to .rec file.
+    std::fstream m_recFile;
+    bool m_recFileValid;
 
-        // Handle to .rec file.
-        std::fstream m_recFile;
-        bool m_recFileValid;
+   private: // Player states.
+    bool m_autoRewind;
 
-    private: // Player states.
-        bool m_autoRewind;
+   private: // Index and cache management.
+    // Global index: Mapping SampleTimeStamp --> cache entry (holding the actual content from .rec file).
+    mutable std::mutex m_indexMutex;
+    std::multimap<int64_t, IndexEntry> m_index;
 
-    private: // Index and cache management.
-        // Global index: Mapping SampleTimeStamp --> cache entry (holding the actual content from .rec file).
-        mutable std::mutex m_indexMutex;
-        std::multimap<int64_t, IndexEntry> m_index;
+    // Pointers to the current envelope to be replayed and the
+    // envelope that has be replayed from the global index.
+    std::multimap<int64_t, IndexEntry>::iterator m_previousPreviousEnvelopeAlreadyReplayed;
+    std::multimap<int64_t, IndexEntry>::iterator m_previousEnvelopeAlreadyReplayed;
+    std::multimap<int64_t, IndexEntry>::iterator m_currentEnvelopeToReplay;
 
-        // Pointers to the current envelope to be replayed and the
-        // envelope that has be replayed from the global index.
-        std::multimap<int64_t, IndexEntry>::iterator m_previousPreviousEnvelopeAlreadyReplayed;
-        std::multimap<int64_t, IndexEntry>::iterator m_previousEnvelopeAlreadyReplayed;
-        std::multimap<int64_t, IndexEntry>::iterator m_currentEnvelopeToReplay;
+    // Information about the index.
+    std::multimap<int64_t, IndexEntry>::iterator m_nextEntryToReadFromRecFile;
 
-        // Information about the index.
-        std::multimap<int64_t, IndexEntry>::iterator m_nextEntryToReadFromRecFile;
+    uint32_t m_desiredInitialLevel;
 
-        uint32_t m_desiredInitialLevel;
+    // Fields to compute replay throughput for cache management.
+    cluon::data::TimeStamp m_firstTimePointReturningAEnvelope;
+    uint64_t m_numberOfReturnedEnvelopesInTotal;
 
-        // Fields to compute replay throughput for cache management.
-        cluon::data::TimeStamp m_firstTimePointReturningAEnvelope;
-        uint64_t m_numberOfReturnedEnvelopesInTotal;
+    uint32_t m_delay;
 
-        uint32_t m_delay;
-        uint32_t m_correctedDelay;
+   private:
+    /**
+     * This method sets the state of the envelopeCacheFilling thread.
+     *
+     * @param running False if the thread to fill the Envelope cache shall be joined.
+     */
+    void setEnvelopeCacheFillingRunning(const bool &running) noexcept;
+    bool isEnvelopeCacheFillingRunning() const noexcept;
 
-    private:
-        /**
-         * This method sets the state of the envelopeCacheFilling thread.
-         *
-         * @param running False if the thread to fill the Envelope cache shall be joined.
-         */
-        void setEnvelopeCacheFillingRunning(const bool &running) noexcept;
-        bool isEnvelopeCacheFillingRunning() const noexcept;
+    /**
+     * This method manages the cache.
+     */
+    void manageCache() noexcept;
 
-        /**
-         * This method manages the cache.
-         */
-        void manageCache() noexcept;
+    /**
+     * This method checks whether the cache needs to be refilled.
+     *
+     * @param numberOfEntries Number of entries in cache.
+     * @param refillMultiplicator Multiplicator to modify the amount of envelopes to be refilled.
+     * @return Modified refillMultiplicator recommedned to be used next time
+     */
+    float checkRefillingCache(const uint32_t &numberOfEntries, float refillMultiplicator) noexcept;
 
-        /**
-         * This method checks whether the cache needs to be refilled.
-         *
-         * @param numberOfEntries Number of entries in cache.
-         * @param refillMultiplicator Multiplicator to modify the amount of envelopes to be refilled.
-         * @return Modified refillMultiplicator recommedned to be used next time 
-         */
-        float checkRefillingCache(const uint32_t &numberOfEntries, float refillMultiplicator) noexcept;
+   private:
+    mutable std::mutex m_envelopeCacheFillingThreadIsRunningMutex;
+    bool m_envelopeCacheFillingThreadIsRunning;
+    std::thread m_envelopeCacheFillingThread;
 
-    private:
-        mutable std::mutex m_envelopeCacheFillingThreadIsRunningMutex;
-        bool m_envelopeCacheFillingThreadIsRunning;
-        std::thread m_envelopeCacheFillingThread;
+    // Mapping of pos_type (within .rec file) --> cluon::data::Envelope (read from .rec file).
+    std::map<uint64_t, cluon::data::Envelope> m_envelopeCache;
 
-        // Mapping of pos_type (within .rec file) --> cluon::data::Envelope (read from .rec file).
-        std::map<uint64_t, cluon::data::Envelope> m_envelopeCache;
+   public:
+    void setPlayerListener(std::function<void(cluon::data::PlayerStatus playerStatus)> playerListener) noexcept;
 
-    public:
-        void setPlayerListener(std::function<void(cluon::data::PlayerStatus playerStatus)> playerListener) noexcept;
-
-    private:
-        std::mutex m_playerListenerMutex;
-        std::function<void(cluon::data::PlayerStatus playerStatus)> m_playerListener{nullptr};
+   private:
+    std::mutex m_playerListenerMutex;
+    std::function<void(cluon::data::PlayerStatus playerStatus)> m_playerListener{nullptr};
 };
 
-}
+} // namespace cluon
 
 #endif
 /*
@@ -8053,7 +8089,9 @@ class LIBCLUON_API Player {
 //#include "cluon/cluon.hpp"
 
 // clang-format off
-#ifndef WIN32
+#ifdef WIN32
+    #include <Windows.h>
+#else
     #include <pthread.h>
 #endif
 // clang-format on
@@ -8075,8 +8113,9 @@ class LIBCLUON_API SharedMemory {
     /**
      * Constructor.
      *
-     * @param name Name of the shared memory area; must start with / and must not be longer than NAME_MAX (255). If the name is missing a leading '/' or is
-     * longer than 255, it will be adjusted accordingly.
+     * @param name Name of the shared memory area; must start with / and must not
+     * be longer than NAME_MAX (255) on POSIX or PATH_MAX on WIN32. If the name
+     * is missing a leading '/' or is longer than 255, it will be adjusted accordingly.
      * @param size of the shared memory area to create; if size is 0, the class tries to attach to an existing area.
      */
     SharedMemory(const std::string &name, uint32_t size = 0) noexcept;
@@ -8123,14 +8162,18 @@ class LIBCLUON_API SharedMemory {
     bool valid() noexcept;
 
    private:
-    int32_t m_fd{-1};
     std::string m_name{""};
     uint32_t m_size{0};
     char *m_sharedMemory{nullptr};
     char *m_userAccessibleSharedMemory{nullptr};
     bool m_hasOnlyAttachedToSharedMemory{false};
 
-#ifndef WIN32
+#ifdef WIN32
+    HANDLE __conditionEvent{nullptr};
+    HANDLE __mutex{nullptr};
+    HANDLE __sharedMemory{nullptr};
+#else
+    int32_t m_fd{-1};
     struct SharedMemoryHeader {
         uint32_t __size;
         pthread_mutex_t __mutex;
@@ -8382,6 +8425,7 @@ inline std::map<std::string, std::string> getCommandlineArguments(int32_t argc, 
 //#include "cluon/MetaMessage.hpp"
 
 namespace cluon {
+
 inline MetaMessage::MetaField::MetaFieldDataTypes MetaMessage::MetaField::fieldDataType() const noexcept {
     return m_fieldDataType;
 }
@@ -8428,6 +8472,8 @@ inline MetaMessage::MetaField &MetaMessage::MetaField::defaultInitializationValu
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline MetaMessage::MetaMessage() noexcept {}
 
 inline std::string MetaMessage::packageName() const noexcept {
     return m_packageName;
@@ -8791,7 +8837,7 @@ inline std::pair<std::vector<MetaMessage>, MessageParser::MessageParserErrorCode
     std::pair<std::vector<MetaMessage>, MessageParserErrorCodes> retVal{};
     std::string inputWithoutComments{input};
     try {
-        const std::string MATCH_COMMENTS_REGEX = R"((//.*)|/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/)";
+        const std::string MATCH_COMMENTS_REGEX = R"(/\*([\s\S]*?)\*/|//.*)";
         inputWithoutComments                   = std::regex_replace(input, std::regex(MATCH_COMMENTS_REGEX), ""); // NOLINT
     } catch (std::regex_error &) {                                                                                // LCOV_EXCL_LINE
     } catch (std::bad_cast &) {                                                                                   // LCOV_EXCL_LINE
@@ -8841,8 +8887,8 @@ inline std::pair<std::vector<MetaMessage>, MessageParser::MessageParserErrorCode
 
 //#include "cluon/TerminateHandler.hpp"
 
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 namespace cluon {
@@ -8851,13 +8897,13 @@ inline void cluon_handleExit() {
     TerminateHandler::instance().isTerminated.store(true);
 }
 
-inline void cluon_handleSignal(int32_t /*signal*/) {
-    TerminateHandler::instance().isTerminated.store(true);
+inline void cluon_handleSignal(int32_t /*signal*/) {       // LCOV_EXCL_LINE
+    TerminateHandler::instance().isTerminated.store(true); // LCOV_EXCL_LINE
 }
 
 inline TerminateHandler::TerminateHandler() noexcept {
     if (0 != std::atexit(cluon_handleExit)) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register cluon_exitHandler()." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register cluon_exitHandler()." << std::endl; // LCOV_EXCL_LINE
     }
 
 #ifdef WIN32
@@ -8872,16 +8918,15 @@ inline TerminateHandler::TerminateHandler() noexcept {
     m_signalHandler.sa_handler = &cluon_handleSignal;
 
     if (::sigaction(SIGINT, &m_signalHandler, NULL) < 0) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGINT." << std::endl; // LCOV_EXCL_LINE
     }
     if (::sigaction(SIGTERM, &m_signalHandler, NULL) < 0) {
-        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl;
+        std::cerr << "[cluon::TerminateHandler] Failed to register signal SIGTERM." << std::endl; // LCOV_EXCL_LINE
     }
 #endif
 }
 
 } // namespace cluon
-
 /*
  * Copyright (C) 2017-2018  Christian Berger
  *
@@ -8908,6 +8953,7 @@ inline TerminateHandler::TerminateHandler() noexcept {
 #else
     #include <arpa/inet.h>
     #include <sys/socket.h>
+    #include <sys/types.h>
     #include <unistd.h>
 #endif
 // clang-format on
@@ -8948,6 +8994,23 @@ inline UDPSender::UDPSender(const std::string &sendToAddress, uint16_t sendToPor
 
         m_socket = ::socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
+        // Bind to random address/port but store sender port.
+        if (!(m_socket < 0)) {
+            struct sockaddr_in sendFromAddress;
+            std::memset(&sendFromAddress, 0, sizeof(sendFromAddress));
+            sendFromAddress.sin_family = AF_INET;
+            sendFromAddress.sin_port   = 0;                                                                              // Randomly choose a port to bind.
+            if (0 == ::bind(m_socket, reinterpret_cast<struct sockaddr *>(&sendFromAddress), sizeof(sendFromAddress))) { // NOLINT
+                struct sockaddr tmpAddr;
+                socklen_t length = sizeof(tmpAddr);
+                if (0 == ::getsockname(m_socket, &tmpAddr, &length)) {
+                    struct sockaddr_in tmpAddrIn;
+                    std::memcpy(&tmpAddrIn, &tmpAddr, sizeof(tmpAddrIn)); /* Flawfinder: ignore */ // NOLINT
+                    m_portToSentFrom = ntohs(tmpAddrIn.sin_port);
+                }
+            }
+        }
+
 #ifdef WIN32
         if (m_socket < 0) {
             std::cerr << "[cluon::UDPSender] Error while creating socket: " << WSAGetLastError() << std::endl;
@@ -8969,6 +9032,10 @@ inline UDPSender::~UDPSender() noexcept {
 #endif
     }
     m_socket = -1;
+}
+
+inline uint16_t UDPSender::getSendFromPort() const noexcept {
+    return m_portToSentFrom;
 }
 
 inline std::pair<ssize_t, int32_t> UDPSender::send(std::string &&data) const noexcept {
@@ -9015,13 +9082,19 @@ inline std::pair<ssize_t, int32_t> UDPSender::send(std::string &&data) const noe
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include "cluon/TerminateHandler.hpp"
 //#include "cluon/UDPReceiver.hpp"
+//#include "cluon/TerminateHandler.hpp"
 //#include "cluon/UDPPacketSizeConstraints.hpp"
 
 // clang-format off
 #ifdef WIN32
-    #include <errno.h>
+    #include <cstdio>
+    #include <cerrno>
+
+    #include <winsock2.h>
+    #include <iphlpapi.h>
+    #include <ws2tcpip.h>
+
     #include <iostream>
 #else
     #include <arpa/inet.h>
@@ -9030,6 +9103,11 @@ inline std::pair<ssize_t, int32_t> UDPSender::send(std::string &&data) const noe
     #include <sys/types.h>
     #include <fcntl.h>
     #include <unistd.h>
+#endif
+
+#ifndef WIN32
+    #include <ifaddrs.h>
+    #include <netdb.h>
 #endif
 // clang-format on
 
@@ -9046,8 +9124,10 @@ namespace cluon {
 
 inline UDPReceiver::UDPReceiver(const std::string &receiveFromAddress,
                          uint16_t receiveFromPort,
-                         std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point &&)> delegate) noexcept
-    : m_receiveFromAddress()
+                         std::function<void(std::string &&, std::string &&, std::chrono::system_clock::time_point &&)> delegate,
+                         uint16_t localSendFromPort) noexcept
+    : m_localSendFromPort(localSendFromPort)
+    , m_receiveFromAddress()
     , m_mreq()
     , m_readFromSocketThread()
     , m_delegate(std::move(delegate)) {
@@ -9185,6 +9265,44 @@ inline UDPReceiver::UDPReceiver(const std::string &receiveFromAddress,
             } else if (!isValid) {
                 closeSocket(EBADF);
             }
+        }
+
+        // Fill list of local IP address to avoid sending data to ourselves.
+        if (!(m_socket < 0)) {
+#ifdef WIN32
+            DWORD size{0};
+            if (ERROR_BUFFER_OVERFLOW == GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, NULL, &size)) {
+                PIP_ADAPTER_ADDRESSES adapters = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(malloc(size));
+                if (ERROR_SUCCESS == GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, adapters, &size)) {
+                    for (PIP_ADAPTER_ADDRESSES adapter = adapters; nullptr != adapter; adapter = adapter->Next) {
+                        for (PIP_ADAPTER_UNICAST_ADDRESS unicastAddress = adapter->FirstUnicastAddress; unicastAddress != NULL;
+                             unicastAddress                             = unicastAddress->Next) {
+                            if (AF_INET == unicastAddress->Address.lpSockaddr->sa_family) {
+                                ::getnameinfo(unicastAddress->Address.lpSockaddr, unicastAddress->Address.iSockaddrLength, nullptr, 0, NULL, 0, NI_NUMERICHOST);
+                                std::memcpy(&tmpSocketAddress, unicastAddress->Address.lpSockaddr, sizeof(tmpSocketAddress)); /* Flawfinder: ignore */ // NOLINT
+                                const unsigned long LOCAL_IP = tmpSocketAddress.sin_addr.s_addr;
+                                m_listOfLocalIPAddresses.insert(LOCAL_IP);
+                            }
+                        }
+                    }
+                }
+                free(adapters);
+            }
+#else
+            struct ifaddrs *interfaceAddress;
+            if (0 == ::getifaddrs(&interfaceAddress)) {
+                for (struct ifaddrs *it = interfaceAddress; nullptr != it; it = it->ifa_next) {
+                    if ((nullptr != it->ifa_addr) && (it->ifa_addr->sa_family == AF_INET)) {
+                        if (0 == ::getnameinfo(it->ifa_addr, sizeof(struct sockaddr_in), nullptr, 0, nullptr, 0, NI_NUMERICHOST)) {
+                            std::memcpy(&tmpSocketAddress, it->ifa_addr, sizeof(tmpSocketAddress)); /* Flawfinder: ignore */ // NOLINT
+                            const unsigned long LOCAL_IP = tmpSocketAddress.sin_addr.s_addr;
+                            m_listOfLocalIPAddresses.insert(LOCAL_IP);
+                        }
+                    }
+                }
+                ::freeifaddrs(interfaceAddress);
+            }
+#endif
         }
 
         if (!(m_socket < 0)) {
@@ -9379,10 +9497,19 @@ inline void UDPReceiver::readFromSocket() noexcept {
                                 &((reinterpret_cast<struct sockaddr_in *>(&remote))->sin_addr), // NOLINT
                                 remoteAddress.data(),
                                 remoteAddress.max_size());
-                    const uint16_t RECVFROM_PORT{ntohs(reinterpret_cast<struct sockaddr_in *>(&remote)->sin_port)}; // NOLINT
+                    const unsigned long RECVFROM_IP{reinterpret_cast<struct sockaddr_in *>(&remote)->sin_addr.s_addr}; // NOLINT
+                    const uint16_t RECVFROM_PORT{ntohs(reinterpret_cast<struct sockaddr_in *>(&remote)->sin_port)};    // NOLINT
+
+                    // Check if the bytes actually came from us.
+                    bool sentFromUs{false};
+                    {
+                        auto pos                   = m_listOfLocalIPAddresses.find(RECVFROM_IP);
+                        const bool sentFromLocalIP = (pos != m_listOfLocalIPAddresses.end() && (*pos == RECVFROM_IP));
+                        sentFromUs                 = sentFromLocalIP && (m_localSendFromPort == RECVFROM_PORT);
+                    }
 
                     // Create a pipeline entry to be processed concurrently.
-                    {
+                    if (!sentFromUs) {
                         PipelineEntry pe;
                         pe.m_data       = std::string(buffer.data(), static_cast<size_t>(bytesRead));
                         pe.m_from       = std::string(remoteAddress.data()) + ':' + std::to_string(RECVFROM_PORT);
@@ -9848,9 +9975,6 @@ inline uint64_t ToProtoVisitor::encodeKey(uint32_t fieldIdentifier, uint8_t prot
 }
 
 inline std::size_t ToProtoVisitor::toVarInt(std::ostream &out, uint64_t v) noexcept {
-    // VarInt is little endian.
-    v = htole64(v);
-
     // Minimum size is of the encoded data.
     std::size_t size{1};
     uint8_t b{0};
@@ -10000,19 +10124,27 @@ inline uint64_t FromProtoVisitor::ProtoKeyValue::valueAsVarInt() const noexcept 
 }
 
 inline float FromProtoVisitor::ProtoKeyValue::valueAsFloat() const noexcept {
-    float retVal{0};
+    union FloatValue {
+        uint32_t uint32Value;
+        float floatValue{0};
+    } retVal;
     if (!m_value.empty() && (length() == sizeof(float)) && (m_value.size() == sizeof(float)) && (type() == ProtoConstants::FOUR_BYTES)) {
-        std::memmove(&retVal, &m_value[0], sizeof(float));
+        std::memmove(&retVal.uint32Value, &m_value[0], sizeof(float));
+        retVal.uint32Value = le32toh(retVal.uint32Value);
     }
-    return retVal;
+    return retVal.floatValue;
 }
 
 inline double FromProtoVisitor::ProtoKeyValue::valueAsDouble() const noexcept {
-    double retVal{0};
+    union DoubleValue {
+        uint64_t uint64Value;
+        double doubleValue{0};
+    } retVal;
     if (!m_value.empty() && (length() == sizeof(double)) && (m_value.size() == sizeof(double)) && (type() == ProtoConstants::EIGHT_BYTES)) {
-        std::memmove(&retVal, &m_value[0], sizeof(double));
+        std::memmove(&retVal.uint64Value, &m_value[0], sizeof(double));
+        retVal.uint64Value = le64toh(retVal.uint64Value);
     }
-    return retVal;
+    return retVal.doubleValue;
 }
 
 inline std::string FromProtoVisitor::ProtoKeyValue::valueAsString() const noexcept {
@@ -10194,8 +10326,6 @@ inline std::size_t FromProtoVisitor::fromVarInt(std::istream &in, uint64_t &valu
         }
     }
 
-    // VarInt is little endian.
-    value = le64toh(value);
     return size;
 }
 } // namespace cluon
@@ -11783,26 +11913,26 @@ inline std::string ToJSONVisitor::encodeBase64(const std::string &input) const n
     uint32_t value{0};
 
     while (length > 2) {
-        value = static_cast<uint32_t>(input.at(index++)) << 16;
-        value |= static_cast<uint32_t>(input.at(index++)) << 8;
-        value |= static_cast<uint32_t>(input.at(index++));
-        retVal += ALPHABET.at(value >> 18 & 63);
-        retVal += ALPHABET.at((value >> 12) & 63);
-        retVal += ALPHABET.at((value >> 6) & 63);
-        retVal += ALPHABET.at((value)&63);
+        value = static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++))) << 16;
+        value |= static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++))) << 8;
+        value |= static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++)));
+        retVal += ALPHABET.at((value & 0xFC0000) >> 18);
+        retVal += ALPHABET.at((value & 0x3F000) >> 12);
+        retVal += ALPHABET.at((value & 0xFC0) >> 6);
+        retVal += ALPHABET.at(value & 0x3F);
         length -= 3;
     }
     if (length == 2) {
-        value = static_cast<uint32_t>(input.at(index++)) << 16;
-        value |= static_cast<uint32_t>(input.at(index++)) << 8;
-        retVal += ALPHABET.at(value >> 18 & 63);
-        retVal += ALPHABET.at((value >> 12) & 63);
-        retVal += ALPHABET.at((value >> 6) & 63);
+        value = static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++))) << 16;
+        value |= static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++))) << 8;
+        retVal += ALPHABET.at((value & 0xFC0000) >> 18);
+        retVal += ALPHABET.at((value & 0x3F000) >> 12);
+        retVal += ALPHABET.at((value & 0xFC0) >> 6);
         retVal += "=";
     } else if (length == 1) {
-        value = static_cast<uint32_t>(input.at(index++)) << 16;
-        retVal += ALPHABET.at(value >> 18 & 63);
-        retVal += ALPHABET.at((value >> 12) & 63);
+        value = static_cast<uint32_t>(static_cast<unsigned char>(input.at(index++))) << 16;
+        retVal += ALPHABET.at((value & 0xFC0000) >> 18);
+        retVal += ALPHABET.at((value & 0x3F000) >> 12);
         retVal += "==";
     }
 
@@ -12649,9 +12779,12 @@ inline OD4Session::OD4Session(uint16_t CID, std::function<void(cluon::data::Enve
     , m_mapOfDataTriggeredDelegatesMutex{}
     , m_mapOfDataTriggeredDelegates{} {
     m_receiver = std::make_unique<cluon::UDPReceiver>(
-        "225.0.0." + std::to_string(CID), 12175, [this](std::string &&data, std::string &&from, std::chrono::system_clock::time_point &&timepoint) {
+        "225.0.0." + std::to_string(CID),
+        12175,
+        [this](std::string &&data, std::string &&from, std::chrono::system_clock::time_point &&timepoint) {
             this->callback(std::move(data), std::move(from), std::move(timepoint));
-    });
+        },
+        m_sender.getSendFromPort() /* passing our local send from port to the UDPReceiver to filter out our own bytes */);
 }
 
 inline void OD4Session::timeTrigger(float freq, std::function<bool()> delegate) noexcept {
@@ -12909,6 +13042,7 @@ inline void ToODVDVisitor::visit(uint32_t id, std::string &&typeName, std::strin
 //#include "cluon/MessageParser.hpp"
 //#include "cluon/ToJSONVisitor.hpp"
 //#include "cluon/ToProtoVisitor.hpp"
+//#include "cluon/any/any.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -12996,12 +13130,14 @@ inline std::string EnvelopeConverter::getJSONFromEnvelope(cluon::data::Envelope 
             try {
                 // Catch possible linb::any exception.
                 gm.accept(payloadToJSON);
-            } catch (...) {} // LCOV_EXCL_LINE
+            } catch (const linb::bad_any_cast &) {} // LCOV_EXCL_LINE
 
             std::string tmp{payload.messageName()};
             std::replace(tmp.begin(), tmp.end(), '.', '_');
 
-            retVal = '{' + envelopeToJSON.json() + ',' + '\n' + '"' + tmp + '"' + ':' + '{' + payloadToJSON.json() + '}' + '}';
+            const std::string strPayloadJSON{payloadToJSON.json() != "{}" ? payloadToJSON.json() : ""};
+
+            retVal = '{' + envelopeToJSON.json() + ',' + '\n' + '"' + tmp + '"' + ':' + '{' + strPayloadJSON + '}' + '}';
         }
     }
     return retVal;
@@ -13009,7 +13145,7 @@ inline std::string EnvelopeConverter::getJSONFromEnvelope(cluon::data::Envelope 
 
 // clang-format off
 inline std::string EnvelopeConverter::getProtoEncodedEnvelopeFromJSONWithoutTimeStamps(const std::string &json, int32_t messageIdentifier, uint32_t senderStamp) noexcept {
-// clang-format on
+    // clang-format on
     std::string retVal;
     if (0 < m_scopeOfMetaMessages.count(messageIdentifier)) {
         // Get specification for message to be created.
@@ -13057,15 +13193,14 @@ inline std::string EnvelopeConverter::getProtoEncodedEnvelopeFromJSONWithoutTime
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-//#include "cluon/Envelope.hpp"
 //#include "cluon/Player.hpp"
+//#include "cluon/Envelope.hpp"
 //#include "cluon/Time.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -13074,39 +13209,35 @@ inline std::string EnvelopeConverter::getProtoEncodedEnvelopeFromJSONWithoutTime
 
 namespace cluon {
 
-inline IndexEntry::IndexEntry() noexcept :
-    IndexEntry(0, 0) {}
-
-inline IndexEntry::IndexEntry(const int64_t &sampleTimeStamp, const uint64_t &filePosition) noexcept :
-    m_sampleTimeStamp(sampleTimeStamp),
-    m_filePosition(filePosition),
-    m_available(false) {}
+inline IndexEntry::IndexEntry(const int64_t &sampleTimeStamp, const uint64_t &filePosition) noexcept
+    : m_sampleTimeStamp(sampleTimeStamp)
+    , m_filePosition(filePosition)
+    , m_available(false) {}
 
 ////////////////////////////////////////////////////////////////////////
 
-inline Player::Player(const std::string &file, const bool &autoRewind, const bool &threading) noexcept :
-    m_threading(threading),
-    m_file(file),
-    m_recFile(),
-    m_recFileValid(false),
-    m_autoRewind(autoRewind),
-    m_indexMutex(),
-    m_index(),
-    m_previousPreviousEnvelopeAlreadyReplayed(m_index.end()),
-    m_previousEnvelopeAlreadyReplayed(m_index.begin()),
-    m_currentEnvelopeToReplay(m_index.begin()),
-    m_nextEntryToReadFromRecFile(m_index.begin()),
-    m_desiredInitialLevel(0),
-    m_firstTimePointReturningAEnvelope(),
-    m_numberOfReturnedEnvelopesInTotal(0),
-    m_delay(0),
-    m_correctedDelay(0),
-    m_envelopeCacheFillingThreadIsRunningMutex(),
-    m_envelopeCacheFillingThreadIsRunning(false),
-    m_envelopeCacheFillingThread(),
-    m_envelopeCache(),
-    m_playerListenerMutex(),
-    m_playerListener(nullptr) {
+inline Player::Player(const std::string &file, const bool &autoRewind, const bool &threading) noexcept
+    : m_threading(threading)
+    , m_file(file)
+    , m_recFile()
+    , m_recFileValid(false)
+    , m_autoRewind(autoRewind)
+    , m_indexMutex()
+    , m_index()
+    , m_previousPreviousEnvelopeAlreadyReplayed(m_index.end())
+    , m_previousEnvelopeAlreadyReplayed(m_index.begin())
+    , m_currentEnvelopeToReplay(m_index.begin())
+    , m_nextEntryToReadFromRecFile(m_index.begin())
+    , m_desiredInitialLevel(0)
+    , m_firstTimePointReturningAEnvelope()
+    , m_numberOfReturnedEnvelopesInTotal(0)
+    , m_delay(0)
+    , m_envelopeCacheFillingThreadIsRunningMutex()
+    , m_envelopeCacheFillingThreadIsRunning(false)
+    , m_envelopeCacheFillingThread()
+    , m_envelopeCache()
+    , m_playerListenerMutex()
+    , m_playerListener(nullptr) {
     initializeIndex();
     computeInitialCacheLevelAndFillCache();
 
@@ -13137,13 +13268,13 @@ inline void Player::setPlayerListener(std::function<void(cluon::data::PlayerStat
 ////////////////////////////////////////////////////////////////////////
 
 inline void Player::initializeIndex() noexcept {
-    m_recFile.open(m_file.c_str(), std::ios_base::in|std::ios_base::binary);
+    m_recFile.open(m_file.c_str(), std::ios_base::in | std::ios_base::binary); /* Flawfinder: ignore */
     m_recFileValid = m_recFile.good();
 
     if (m_recFileValid) {
         // Determine file size to display progress.
         m_recFile.seekg(0, m_recFile.end);
-            int64_t fileLength = m_recFile.tellg();
+        int64_t fileLength = m_recFile.tellg();
         m_recFile.seekg(0, m_recFile.beg);
 
         // Read complete file and store file positions to envelopes to create
@@ -13154,8 +13285,8 @@ inline void Player::initializeIndex() noexcept {
             int32_t oldPercentage = -1;
             while (m_recFile.good()) {
                 const uint64_t POS_BEFORE = static_cast<uint64_t>(m_recFile.tellg());
-                    auto retVal = extractEnvelope(m_recFile);
-                const uint64_t POS_AFTER = static_cast<uint64_t>(m_recFile.tellg());
+                auto retVal               = extractEnvelope(m_recFile);
+                const uint64_t POS_AFTER  = static_cast<uint64_t>(m_recFile.tellg());
 
                 if (!m_recFile.eof() && retVal.first) {
                     totalBytesRead += (POS_AFTER - POS_BEFORE);
@@ -13164,8 +13295,8 @@ inline void Player::initializeIndex() noexcept {
                     const int64_t microseconds = cluon::time::toMicroseconds(retVal.second.sampleTimeStamp());
                     m_index.emplace(std::make_pair(microseconds, IndexEntry(microseconds, POS_BEFORE)));
 
-                    const int32_t percentage = static_cast<int32_t>((static_cast<float>(m_recFile.tellg())*100.0f)/static_cast<float>(fileLength));
-                    if ( (percentage % 5 == 0) && (percentage != oldPercentage) ) {
+                    const int32_t percentage = static_cast<int32_t>((static_cast<float>(m_recFile.tellg()) * 100.0f) / static_cast<float>(fileLength));
+                    if ((percentage % 5 == 0) && (percentage != oldPercentage)) {
                         std::clog << "[cluon::Player]: Indexed " << percentage << "% from " << m_file << "." << std::endl;
                         oldPercentage = percentage;
                     }
@@ -13174,12 +13305,10 @@ inline void Player::initializeIndex() noexcept {
         }
         const cluon::data::TimeStamp AFTER{cluon::time::now()};
 
-        std::clog << "[cluon::Player]: " << m_file
-                                         << " contains " << m_index.size() << " entries; "
-                                         << "read " << totalBytesRead << " bytes "
-                                         << "in " << cluon::time::deltaInMicroseconds(AFTER, BEFORE)/static_cast<int64_t>(1000*1000) << "s." << std::endl;
-    }
-    else {
+        std::clog << "[cluon::Player]: " << m_file << " contains " << m_index.size() << " entries; "
+                  << "read " << totalBytesRead << " bytes "
+                  << "in " << cluon::time::deltaInMicroseconds(AFTER, BEFORE) / static_cast<int64_t>(1000 * 1000) << "s." << std::endl;
+    } else {
         std::clog << "[cluon::Player]: " << m_file << " could not be opened." << std::endl;
     }
 }
@@ -13187,40 +13316,35 @@ inline void Player::initializeIndex() noexcept {
 inline void Player::resetCaches() noexcept {
     try {
         std::lock_guard<std::mutex> lck(m_indexMutex);
-        m_delay = 0;
-        m_correctedDelay = 0;
+        m_delay                            = 0;
         m_numberOfReturnedEnvelopesInTotal = 0;
         m_envelopeCache.clear();
-    }
-    catch (...) {}
+    } catch (...) {} // LCOV_EXCL_LINE
 }
 
 inline void Player::resetIterators() noexcept {
     try {
         std::lock_guard<std::mutex> lck(m_indexMutex);
         // Point to first entry in index.
-        m_nextEntryToReadFromRecFile
-            = m_previousEnvelopeAlreadyReplayed
-            = m_currentEnvelopeToReplay
-            = m_index.begin();
+        m_nextEntryToReadFromRecFile = m_previousEnvelopeAlreadyReplayed = m_currentEnvelopeToReplay = m_index.begin();
         // Invalidate iterator for erasing entries point.
         m_previousPreviousEnvelopeAlreadyReplayed = m_index.end();
-    }
-    catch (...) {}
+    } catch (...) {} // LCOV_EXCL_LINE
 }
 
 inline void Player::computeInitialCacheLevelAndFillCache() noexcept {
-    if (m_recFileValid && (m_index.size() > 0) ) {
+    if (m_recFileValid && (m_index.size() > 0)) {
         int64_t smallestSampleTimePoint = std::numeric_limits<int64_t>::max();
-        int64_t largestSampleTimePoint = std::numeric_limits<int64_t>::min();
+        int64_t largestSampleTimePoint  = std::numeric_limits<int64_t>::min();
         for (auto it = m_index.begin(); it != m_index.end(); it++) {
             smallestSampleTimePoint = std::min(smallestSampleTimePoint, it->first);
-            largestSampleTimePoint = std::max(largestSampleTimePoint, it->first);
+            largestSampleTimePoint  = std::max(largestSampleTimePoint, it->first);
         }
 
-        const uint32_t ENTRIES_TO_READ_PER_SECOND_FOR_REALTIME_REPLAY = static_cast<uint32_t>(std::ceil(static_cast<float>(m_index.size())*(static_cast<float>(Player::ONE_SECOND_IN_MICROSECONDS))/static_cast<float>(largestSampleTimePoint - smallestSampleTimePoint)));
-        m_desiredInitialLevel = std::max<uint32_t>(ENTRIES_TO_READ_PER_SECOND_FOR_REALTIME_REPLAY * Player::LOOK_AHEAD_IN_S,
-                                                   MIN_ENTRIES_FOR_LOOK_AHEAD);
+        const uint32_t ENTRIES_TO_READ_PER_SECOND_FOR_REALTIME_REPLAY
+            = static_cast<uint32_t>(std::ceil(static_cast<float>(m_index.size()) * (static_cast<float>(Player::ONE_SECOND_IN_MICROSECONDS))
+                                              / static_cast<float>(largestSampleTimePoint - smallestSampleTimePoint)));
+        m_desiredInitialLevel = std::max<uint32_t>(ENTRIES_TO_READ_PER_SECOND_FOR_REALTIME_REPLAY * Player::LOOK_AHEAD_IN_S, MIN_ENTRIES_FOR_LOOK_AHEAD);
 
         std::clog << "[cluon::Player]: Initializing cache with " << m_desiredInitialLevel << " entries." << std::endl;
 
@@ -13236,8 +13360,7 @@ inline uint32_t Player::fillEnvelopeCache(const uint32_t &maxNumberOfEntriesToRe
         // Reset any fstream's error states.
         m_recFile.clear();
 
-        while ( (m_nextEntryToReadFromRecFile != m_index.end())
-             && (entriesReadFromFile < maxNumberOfEntriesToReadFromFile) ) {
+        while ((m_nextEntryToReadFromRecFile != m_index.end()) && (entriesReadFromFile < maxNumberOfEntriesToReadFromFile)) {
             // Move to corresponding position in the .rec file.
             m_recFile.seekg(static_cast<std::streamoff>(m_nextEntryToReadFromRecFile->second.m_filePosition));
 
@@ -13247,9 +13370,9 @@ inline uint32_t Player::fillEnvelopeCache(const uint32_t &maxNumberOfEntriesToRe
                 // Store the envelope in the envelope cache.
                 try {
                     std::lock_guard<std::mutex> lck(m_indexMutex);
-                    m_nextEntryToReadFromRecFile->second.m_available = m_envelopeCache.emplace(std::make_pair(m_nextEntryToReadFromRecFile->second.m_filePosition, retVal.second)).second;
-                }
-                catch (...) {}
+                    m_nextEntryToReadFromRecFile->second.m_available
+                        = m_envelopeCache.emplace(std::make_pair(m_nextEntryToReadFromRecFile->second.m_filePosition, retVal.second)).second;
+                } catch (...) {} // LCOV_EXCL_LINE
 
                 m_nextEntryToReadFromRecFile++;
                 entriesReadFromFile++;
@@ -13268,8 +13391,7 @@ inline std::pair<bool, cluon::data::Envelope> Player::getNextEnvelopeToBeReplaye
     if (m_currentEnvelopeToReplay == m_index.end()) {
         if (!m_autoRewind) {
             return std::make_pair(hasEnvelopeToReturn, envelopeToReturn);
-        }
-        else {
+        } else {
             rewind();
         }
     }
@@ -13282,9 +13404,9 @@ inline std::pair<bool, cluon::data::Envelope> Player::getNextEnvelopeToBeReplaye
                 std::lock_guard<std::mutex> lck(m_indexMutex);
 
                 cluon::data::Envelope &nextEnvelope = m_envelopeCache[m_currentEnvelopeToReplay->second.m_filePosition];
-                envelopeToReturn = nextEnvelope;
+                envelopeToReturn                    = nextEnvelope;
 
-                m_correctedDelay = m_delay = static_cast<uint32_t>(m_currentEnvelopeToReplay->first - m_previousEnvelopeAlreadyReplayed->first);
+                m_delay = static_cast<uint32_t>(m_currentEnvelopeToReplay->first - m_previousEnvelopeAlreadyReplayed->first);
 
                 // TODO: Delegate deleting into own thread.
                 if (m_previousPreviousEnvelopeAlreadyReplayed != m_index.end()) {
@@ -13295,7 +13417,7 @@ inline std::pair<bool, cluon::data::Envelope> Player::getNextEnvelopeToBeReplaye
                 }
 
                 m_previousPreviousEnvelopeAlreadyReplayed = m_previousEnvelopeAlreadyReplayed;
-                m_previousEnvelopeAlreadyReplayed = m_currentEnvelopeToReplay++;
+                m_previousEnvelopeAlreadyReplayed         = m_currentEnvelopeToReplay++;
 
                 m_numberOfReturnedEnvelopesInTotal++;
             }
@@ -13309,8 +13431,7 @@ inline std::pair<bool, cluon::data::Envelope> Player::getNextEnvelopeToBeReplaye
 
             // Store sample time stamp as int64 to avoid unnecessary copying of Envelopes.
             hasEnvelopeToReturn = true;
-        }
-        catch (...) {}
+        } catch (...) {} // LCOV_EXCL_LINE
     }
     return std::make_pair(hasEnvelopeToReturn, envelopeToReturn);
 }
@@ -13322,34 +13443,26 @@ inline void Player::checkAvailabilityOfNextEnvelopeToBeReplayed() noexcept {
             try {
                 std::lock_guard<std::mutex> lck(m_indexMutex);
                 numberOfEntries = m_envelopeCache.size();
-            }
-            catch (...) {}
+            } catch (...) {} // LCOV_EXCL_LINE
         }
         if (0 == numberOfEntries) {
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(10ms);
+            using namespace std::chrono_literals; // LCOV_EXCL_LINE
+            std::this_thread::sleep_for(10ms);    // LCOV_EXCL_LINE
         }
-    }
-    while (0 == numberOfEntries);
+    } while (0 == numberOfEntries);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline uint32_t Player::getTotalNumberOfEnvelopesInRecFile() const noexcept {
+inline uint32_t Player::totalNumberOfEnvelopesInRecFile() const noexcept {
     std::lock_guard<std::mutex> lck(m_indexMutex);
     return static_cast<uint32_t>(m_index.size());
 }
 
-inline uint32_t Player::getDelay() const noexcept {
+inline uint32_t Player::delay() const noexcept {
     std::lock_guard<std::mutex> lck(m_indexMutex);
     // Make sure that delay is not exceeding the specified maximum delay.
     return std::min<uint32_t>(m_delay, Player::MAX_DELAY_IN_MICROSECONDS);
-}
-
-inline uint32_t Player::getCorrectedDelay() const noexcept {
-    std::lock_guard<std::mutex> lck(m_indexMutex);
-    // Make sure that delay is not exceeding the specified maximum delay.
-    return std::min<uint32_t>(m_correctedDelay, Player::MAX_DELAY_IN_MICROSECONDS);
 }
 
 inline void Player::rewind() noexcept {
@@ -13387,25 +13500,28 @@ inline void Player::seekTo(float ratio) noexcept {
         try {
             std::lock_guard<std::mutex> lck(m_indexMutex);
             numberOfEntriesInIndex = static_cast<uint32_t>(m_index.size());
-        }
-        catch (...) {}
+        } catch (...) {} // LCOV_EXCL_LINE
 
         // Fast forward.
         m_numberOfReturnedEnvelopesInTotal = 0;
-        std::clog << "[cluon::Player]: Seeking to " << static_cast<float>(numberOfEntriesInIndex)*ratio << "/" << numberOfEntriesInIndex << std::endl;
-        for (m_numberOfReturnedEnvelopesInTotal = 0; m_numberOfReturnedEnvelopesInTotal < static_cast<uint32_t>(static_cast<float>(numberOfEntriesInIndex)*ratio)-1; m_numberOfReturnedEnvelopesInTotal++) {
-            m_currentEnvelopeToReplay++;
+        std::clog << "[cluon::Player]: Seeking to " << static_cast<float>(numberOfEntriesInIndex) * ratio << "/" << numberOfEntriesInIndex << std::endl;
+        if (0 < ratio) {
+            for (m_numberOfReturnedEnvelopesInTotal = 0;
+                 m_numberOfReturnedEnvelopesInTotal < static_cast<uint32_t>(static_cast<float>(numberOfEntriesInIndex) * ratio) - 1;
+                 m_numberOfReturnedEnvelopesInTotal++) {
+                m_currentEnvelopeToReplay++;
+            }
         }
-        m_nextEntryToReadFromRecFile
-            = m_previousEnvelopeAlreadyReplayed
-            = m_currentEnvelopeToReplay;
+        m_nextEntryToReadFromRecFile = m_previousEnvelopeAlreadyReplayed = m_currentEnvelopeToReplay;
 
         // Refill cache.
         m_envelopeCache.clear();
-        fillEnvelopeCache(static_cast<uint32_t>(static_cast<float>(m_desiredInitialLevel)*.3f));
+        fillEnvelopeCache(static_cast<uint32_t>(static_cast<float>(m_desiredInitialLevel) * .3f));
 
-        // Correct iterators.
-        getNextEnvelopeToBeReplayed();
+        // Correct iterators if not at the beginning.
+        if ((0 < ratio) && (ratio < 1)) {
+            getNextEnvelopeToBeReplayed();
+        }
         std::clog << "[cluon::Player]: Seeking done." << std::endl;
 
         if (enableThreading) {
@@ -13444,14 +13560,13 @@ inline bool Player::isEnvelopeCacheFillingRunning() const noexcept {
 inline void Player::manageCache() noexcept {
     uint8_t statisticsCounter = 0;
     float refillMultiplicator = 1.1f;
-    uint32_t numberOfEntries = 0;
+    uint32_t numberOfEntries  = 0;
 
     while (isEnvelopeCacheFillingRunning()) {
         try {
             std::lock_guard<std::mutex> lck(m_indexMutex);
             numberOfEntries = static_cast<uint32_t>(m_envelopeCache.size());
-        }
-        catch (...) {}
+        } catch (...) {} // LCOV_EXCL_LINE
 
         // Check if refilling of the cache is needed.
         refillMultiplicator = checkRefillingCache(numberOfEntries, refillMultiplicator);
@@ -13462,16 +13577,15 @@ inline void Player::manageCache() noexcept {
         std::this_thread::sleep_for(100ms);
 
         // Publish some statistics at 1 Hz.
-        if ( 0 == ((++statisticsCounter) % 10) ) {
+        if (0 == ((++statisticsCounter) % 10)) {
             uint64_t numberOfReturnedEnvelopesInTotal = 0;
-            uint32_t totalNumberOfEnvelopes = 0;
+            uint32_t totalNumberOfEnvelopes           = 0;
             try {
                 // m_numberOfReturnedEnvelopesInTotal is modified in a different thread.
                 std::lock_guard<std::mutex> lck(m_indexMutex);
                 numberOfReturnedEnvelopesInTotal = m_numberOfReturnedEnvelopesInTotal;
-                totalNumberOfEnvelopes = static_cast<uint32_t>(m_index.size());
-            }
-            catch (...) {}
+                totalNumberOfEnvelopes           = static_cast<uint32_t>(m_index.size());
+            } catch (...) {} // LCOV_EXCL_LINE
 
             try {
                 std::lock_guard<std::mutex> lck(m_playerListenerMutex);
@@ -13482,8 +13596,7 @@ inline void Player::manageCache() noexcept {
                     ps.currentEntryForPlayback(static_cast<uint32_t>(numberOfReturnedEnvelopesInTotal));
                     m_playerListener(ps);
                 }
-            }
-            catch (...) {}
+            } catch (...) {} // LCOV_EXCL_LINE
 
             statisticsCounter = 0;
         }
@@ -13492,17 +13605,18 @@ inline void Player::manageCache() noexcept {
 
 inline float Player::checkRefillingCache(const uint32_t &numberOfEntries, float refillMultiplicator) noexcept {
     // If filling level is around 35%, pour in more from the recording.
-    if (numberOfEntries < 0.35*m_desiredInitialLevel) {
+    if (numberOfEntries < 0.35 * m_desiredInitialLevel) {
         const uint32_t entriesReadFromFile = fillEnvelopeCache(static_cast<uint32_t>(refillMultiplicator * static_cast<float>(m_desiredInitialLevel)));
         if (entriesReadFromFile > 0) {
-            std::clog << "[cluon::Player]: Number of entries in cache: "  << numberOfEntries << ". " << entriesReadFromFile << " added to cache. " << m_envelopeCache.size() << " entries available." << std::endl;
+            std::clog << "[cluon::Player]: Number of entries in cache: " << numberOfEntries << ". " << entriesReadFromFile << " added to cache. "
+                      << m_envelopeCache.size() << " entries available." << std::endl;
             refillMultiplicator *= 1.25f;
         }
     }
     return refillMultiplicator;
 }
 
-}
+} // namespace cluon
 /*
  * Copyright (C) 2017-2018  Christian Berger
  *
@@ -13523,7 +13637,9 @@ inline float Player::checkRefillingCache(const uint32_t &numberOfEntries, float 
 //#include "cluon/SharedMemory.hpp"
 
 // clang-format off
-#ifndef WIN32
+#ifdef WIN32
+    #include <limits>
+#else
     #include <fcntl.h>
     #include <sys/mman.h>
     #include <sys/stat.h>
@@ -13539,7 +13655,11 @@ namespace cluon {
 inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexcept
     : m_size(size) {
     if (!name.empty()) {
+#ifdef WIN32
+        constexpr int MAX_LENGTH_NAME{MAX_PATH};
+#else
         constexpr int MAX_LENGTH_NAME{254};
+#endif
         const std::string n{name.substr(0, (name.size() > MAX_LENGTH_NAME ? MAX_LENGTH_NAME : name.size()))};
         if ('/' != n[0]) {
             m_name = "/";
@@ -13548,6 +13668,143 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
         if (m_name.size() > MAX_LENGTH_NAME) {
             m_name = m_name.substr(0, MAX_LENGTH_NAME);
         }
+
+#ifdef WIN32
+        std::string mutexName = m_name;
+        if (mutexName.size() > MAX_LENGTH_NAME) {
+            mutexName = mutexName.substr(0, MAX_LENGTH_NAME - 6);
+        }
+        const std::string conditionEventName = mutexName + "_event";
+        mutexName += "_mutex";
+
+        if (0 < size) {
+            // Create a shared memory area and semaphores.
+            const LONG MUTEX_INITIAL_COUNT = 1;
+            const LONG MUTEX_MAX_COUNT     = 1;
+            const DWORD FLAGS              = 0; // Reserved.
+            __mutex                        = CreateSemaphoreEx(NULL, MUTEX_INITIAL_COUNT, MUTEX_MAX_COUNT, mutexName.c_str(), FLAGS, SEMAPHORE_ALL_ACCESS);
+            if (nullptr != __mutex) {
+                __conditionEvent = CreateEvent(
+                    NULL /*use default security*/, TRUE /*manually resetting event*/, FALSE /*initial state is not signaled*/, conditionEventName.c_str());
+                if (nullptr != __conditionEvent) {
+                    __sharedMemory = CreateFileMapping(INVALID_HANDLE_VALUE /*use paging file*/,
+                                                       NULL /*use default security*/,
+                                                       PAGE_READWRITE,
+                                                       0,
+                                                       m_size + sizeof(uint32_t) /*size + size-information (uint32_t)*/,
+                                                       m_name.c_str());
+                    if (nullptr != __sharedMemory) {
+                        m_sharedMemory = (char *)MapViewOfFile(__sharedMemory, FILE_MAP_ALL_ACCESS, 0, 0, m_size + sizeof(uint32_t));
+                        if (nullptr != m_sharedMemory) {
+                            // Provide size information at the beginning of the shared memory.
+                            *(uint32_t *)m_sharedMemory  = m_size;
+                            m_userAccessibleSharedMemory = m_sharedMemory + sizeof(uint32_t);
+                        } else {
+                            std::cerr << "[cluon::SharedMemory] Failed to map shared memory '" << m_name << "': "
+                                      << " (" << GetLastError() << ")" << std::endl;
+                            CloseHandle(__sharedMemory);
+                            __sharedMemory = nullptr;
+
+                            CloseHandle(__conditionEvent);
+                            __conditionEvent = nullptr;
+
+                            CloseHandle(__mutex);
+                            __mutex = nullptr;
+                        }
+                    } else {
+                        std::cerr << "[cluon::SharedMemory] Failed to request shared memory '" << m_name << "': "
+                                  << " (" << GetLastError() << ")" << std::endl;
+                        CloseHandle(__conditionEvent);
+                        __conditionEvent = nullptr;
+
+                        CloseHandle(__mutex);
+                        __mutex = nullptr;
+                    }
+                } else {
+                    std::cerr << "[cluon::SharedMemory] Failed to request event '" << conditionEventName << "': "
+                              << " (" << GetLastError() << ")" << std::endl;
+                    CloseHandle(__conditionEvent);
+                    __conditionEvent = nullptr;
+
+                    CloseHandle(__mutex);
+                    __mutex = nullptr;
+                }
+            } else {
+                std::cerr << "[cluon::SharedMemory] Failed to create mutex '" << mutexName << "': "
+                          << " (" << GetLastError() << ")" << std::endl;
+                CloseHandle(__mutex);
+                __mutex = nullptr;
+            }
+        } else {
+            // Open a shared memory area and semaphores.
+            m_hasOnlyAttachedToSharedMemory = true;
+            const BOOL INHERIT_HANDLE       = FALSE;
+            __mutex                         = OpenSemaphore(SEMAPHORE_ALL_ACCESS, INHERIT_HANDLE, mutexName.c_str());
+            if (nullptr != __mutex) {
+                __conditionEvent = OpenEvent(EVENT_ALL_ACCESS, FALSE /*do not inherit the name*/, conditionEventName.c_str());
+                if (nullptr != __conditionEvent) {
+                    __sharedMemory = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE /*do not inherit the name*/, m_name.c_str());
+                    if (nullptr != __sharedMemory) {
+                        // Firstly, map only for the size of a uint32_t to read the entire size.
+                        m_sharedMemory = (char *)MapViewOfFile(__sharedMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(uint32_t));
+                        if (nullptr != m_sharedMemory) {
+                            //  Now, read the real size...
+                            m_size = *(uint32_t *)m_sharedMemory;
+                            // ..unmap and re-map.
+                            UnmapViewOfFile(m_sharedMemory);
+                            m_sharedMemory = (char *)MapViewOfFile(__sharedMemory, FILE_MAP_ALL_ACCESS, 0, 0, m_size + sizeof(uint32_t));
+                            if (nullptr != m_sharedMemory) {
+                                m_userAccessibleSharedMemory = m_sharedMemory + sizeof(uint32_t);
+                            } else {
+                                std::cerr << "[cluon::SharedMemory] Failed to finally map shared memory '" << m_name << "': "
+                                          << " (" << GetLastError() << ")" << std::endl;
+                                CloseHandle(__sharedMemory);
+                                __sharedMemory = nullptr;
+
+                                CloseHandle(__conditionEvent);
+                                __conditionEvent = nullptr;
+
+                                CloseHandle(__mutex);
+                                __mutex = nullptr;
+                            }
+                        } else {
+                            std::cerr << "[cluon::SharedMemory] Failed to temporarily map shared memory '" << m_name << "': "
+                                      << " (" << GetLastError() << ")" << std::endl;
+                            CloseHandle(__sharedMemory);
+                            __sharedMemory = nullptr;
+
+                            CloseHandle(__conditionEvent);
+                            __conditionEvent = nullptr;
+
+                            CloseHandle(__mutex);
+                            __mutex = nullptr;
+                        }
+                    } else {
+                        std::cerr << "[cluon::SharedMemory] Failed to open shared memory '" << m_name << "': "
+                                  << " (" << GetLastError() << ")" << std::endl;
+                        CloseHandle(__conditionEvent);
+                        __conditionEvent = nullptr;
+
+                        CloseHandle(__mutex);
+                        __mutex = nullptr;
+                    }
+                } else {
+                    std::cerr << "[cluon::SharedMemory] Failed to open event '" << conditionEventName << "': "
+                              << " (" << GetLastError() << ")" << std::endl;
+                    CloseHandle(__conditionEvent);
+                    __conditionEvent = nullptr;
+
+                    CloseHandle(__mutex);
+                    __mutex = nullptr;
+                }
+            } else {
+                std::cerr << "[cluon::SharedMemory] Failed to open mutex '" << mutexName << "': "
+                          << " (" << GetLastError() << ")" << std::endl;
+                CloseHandle(__mutex);
+                __mutex = nullptr;
+            }
+        }
+#endif
 
 #ifndef WIN32
         // If size is greater than 0, the caller wants to create a new shared
@@ -13580,10 +13837,10 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
 
             // When creating a shared memory segment, truncate it.
             if (0 < m_size) {
-                retVal = (0 == ::ftruncate(m_fd, sizeof(SharedMemoryHeader) + m_size));
+                retVal = (0 == ::ftruncate(m_fd, static_cast<off_t>(sizeof(SharedMemoryHeader) + m_size)));
                 if (!retVal) {
                     std::cerr << "[cluon::SharedMemory] Failed to truncate '" << m_name << "': " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
-                              << std::endl; // LCOV_EXCL_LINE
+                              << std::endl;                                                                                                   // LCOV_EXCL_LINE
                 }
             }
 
@@ -13628,9 +13885,9 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
                         m_size = m_sharedMemoryHeader->__size;
 
                         // Now, as we know the real size, unmap the first mapping that did not know the size.
-                        if ((nullptr != m_sharedMemory) && ::munmap(m_sharedMemory, sizeof(SharedMemoryHeader))) {
+                        if (::munmap(m_sharedMemory, sizeof(SharedMemoryHeader))) {
                             std::cerr << "[cluon::SharedMemory] Failed to unmap shared memory: " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
-                                      << std::endl; // LCOV_EXCL_LINE
+                                      << std::endl;                                                                                           // LCOV_EXCL_LINE
                         }
 
                         // Invalidate all pointers.
@@ -13643,9 +13900,9 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
                             m_sharedMemoryHeader = reinterpret_cast<SharedMemoryHeader *>(m_sharedMemory);
                         }
                     }
-                } else { // LCOV_EXCL_LINE
+                } else {                                                                                                                 // LCOV_EXCL_LINE
                     std::cerr << "[cluon::SharedMemory] Failed to map '" << m_name << "': " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
-                              << std::endl; // LCOV_EXCL_LINE
+                              << std::endl;                                                                                              // LCOV_EXCL_LINE
                 }
 
                 // If the shared memory segment is correctly available, store the pointer for the user data.
@@ -13654,14 +13911,15 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
 
                     // Lock the shared memory into RAM for performance reasons.
                     if (-1 == ::mlock(m_sharedMemory, sizeof(SharedMemoryHeader) + m_size)) {
-                        std::cerr << "[cluon::SharedMemory] Failed to mlock shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+                        std::cerr << "[cluon::SharedMemory] Failed to mlock shared memory: " // LCOV_EXCL_LINE
+                                  << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
                     }
                 }
-            } else {                                          // LCOV_EXCL_LINE
-                if (-1 != m_fd) {                             // LCOV_EXCL_LINE
-                    if (-1 == ::shm_unlink(m_name.c_str())) { // LCOV_EXCL_LINE
+            } else {                                                                                                                       // LCOV_EXCL_LINE
+                if (-1 != m_fd) {                                                                                                          // LCOV_EXCL_LINE
+                    if (-1 == ::shm_unlink(m_name.c_str())) {                                                                              // LCOV_EXCL_LINE
                         std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
-                                  << std::endl; // LCOV_EXCL_LINE
+                                  << std::endl;                                                                                            // LCOV_EXCL_LINE
                     }
                 }
                 m_fd = -1; // LCOV_EXCL_LINE
@@ -13672,7 +13930,22 @@ inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexce
 }
 
 inline SharedMemory::~SharedMemory() noexcept {
-#ifndef WIN32
+#ifdef WIN32
+    if (nullptr != __conditionEvent) {
+        SetEvent(__conditionEvent);
+        CloseHandle(__conditionEvent);
+    }
+    if (nullptr != __mutex) {
+        unlock();
+        CloseHandle(__mutex);
+    }
+    if (nullptr != m_sharedMemory) {
+        UnmapViewOfFile(m_sharedMemory);
+    }
+    if (nullptr != __sharedMemory) {
+        CloseHandle(__sharedMemory);
+    }
+#else
     if ((nullptr != m_sharedMemoryHeader) && (!m_hasOnlyAttachedToSharedMemory)) {
         // Wake any waiting threads as we are going to end the shared memory session.
         ::pthread_cond_broadcast(&(m_sharedMemoryHeader->__condition));
@@ -13689,18 +13962,28 @@ inline SharedMemory::~SharedMemory() noexcept {
 }
 
 inline void SharedMemory::lock() noexcept {
-#ifndef WIN32
+#ifdef WIN32
+    if (nullptr != __mutex) {
+        WaitForSingleObject(__mutex, INFINITE);
+    }
+#else
     if (nullptr != m_sharedMemoryHeader) {
         if (EOWNERDEAD == ::pthread_mutex_lock(&(m_sharedMemoryHeader->__mutex))) {
-            std::cerr << "[cluon::SharedMemory] pthread_mutex_lock returned for EOWNERDEAD for mutex in shared memory '" << m_name << "': " << ::strerror(errno) // LCOV_EXCL_LINE
-                      << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+            std::cerr << "[cluon::SharedMemory] pthread_mutex_lock returned for EOWNERDEAD for mutex in shared memory '" << m_name // LCOV_EXCL_LINE
+                      << "': " << ::strerror(errno)                                                                                // LCOV_EXCL_LINE
+                      << " (" << errno << ")" << std::endl;                                                                        // LCOV_EXCL_LINE
         }
     }
 #endif
 }
 
 inline void SharedMemory::unlock() noexcept {
-#ifndef WIN32
+#ifdef WIN32
+    if (nullptr != __mutex) {
+        const LONG RELEASE_COUNT = 1;
+        ReleaseSemaphore(__mutex, RELEASE_COUNT, 0);
+    }
+#else
     if (nullptr != m_sharedMemoryHeader) {
         ::pthread_mutex_unlock(&(m_sharedMemoryHeader->__mutex));
     }
@@ -13708,7 +13991,11 @@ inline void SharedMemory::unlock() noexcept {
 }
 
 inline void SharedMemory::wait() noexcept {
-#ifndef WIN32
+#ifdef WIN32
+    if (nullptr != __conditionEvent) {
+        WaitForSingleObject(__conditionEvent, INFINITE);
+    }
+#else
     if (nullptr != m_sharedMemoryHeader) {
         lock();
         ::pthread_cond_wait(&(m_sharedMemoryHeader->__condition), &(m_sharedMemoryHeader->__mutex));
@@ -13718,7 +14005,12 @@ inline void SharedMemory::wait() noexcept {
 }
 
 inline void SharedMemory::notifyAll() noexcept {
-#ifndef WIN32
+#ifdef WIN32
+    if (nullptr != __conditionEvent) {
+        SetEvent(__conditionEvent);
+        ResetEvent(__conditionEvent);
+    }
+#else
     if (nullptr != m_sharedMemoryHeader) {
         ::pthread_cond_broadcast(&(m_sharedMemoryHeader->__condition));
     }
@@ -13738,7 +14030,10 @@ inline const std::string SharedMemory::name() const noexcept {
 }
 
 inline bool SharedMemory::valid() noexcept {
-    bool valid{-1 != m_fd};
+    bool valid{true};
+#ifndef WIN32
+    valid &= (-1 != m_fd);
+#endif
     valid &= (nullptr != m_sharedMemory);
 #ifndef WIN32
     valid &= (MAP_FAILED != m_sharedMemory);
@@ -15036,8 +15331,8 @@ class LIB_API {{%MESSAGE%}} {
         {{%MESSAGE%}}() = default;
         {{%MESSAGE%}}(const {{%MESSAGE%}}&) = default;
         {{%MESSAGE%}}& operator=(const {{%MESSAGE%}}&) = default;
-        {{%MESSAGE%}}({{%MESSAGE%}}&&) noexcept = default; // NOLINT
-        {{%MESSAGE%}}& operator=({{%MESSAGE%}}&&) noexcept = default; // NOLINT
+        {{%MESSAGE%}}({{%MESSAGE%}}&&) = default; // NOLINT
+        {{%MESSAGE%}}& operator=({{%MESSAGE%}}&&) = default; // NOLINT
         ~{{%MESSAGE%}}() = default;
 
     public:
@@ -15060,6 +15355,7 @@ class LIB_API {{%MESSAGE%}} {
 
         template<class PreVisitor, class Visitor, class PostVisitor>
         void accept(PreVisitor &&preVisit, Visitor &&visit, PostVisitor &&postVisit) {
+            (void)visit; // Prevent warnings from empty messages.
             std::forward<PreVisitor>(preVisit)(ID(), ShortName(), LongName());
             {{#%FIELDS%}}
             doTripletForwardVisit({{%FIELDIDENTIFIER%}}, std::move("{{%TYPE%}}"s), std::move("{{%NAME%}}"s), m_{{%NAME%}}, preVisit, visit, postVisit);
@@ -15380,6 +15676,9 @@ void MetaMessageToProtoTransformator::visit(const MetaMessage &mm) noexcept {
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef CLUON_MSC_HPP
+#define CLUON_MSC_HPP
+
 //#include "cluon/MessageParser.hpp"
 //#include "cluon/MetaMessage.hpp"
 //#include "cluon/MetaMessageToCPPTransformator.hpp"
@@ -15392,7 +15691,7 @@ void MetaMessageToProtoTransformator::visit(const MetaMessage &mm) noexcept {
 #include <sstream>
 #include <string>
 
-int main(int argc, char **argv) {
+inline int32_t cluon_msc(int32_t argc, char **argv) {
     const std::string PROGRAM{argv[0]}; // NOLINT
     argh::parser commandline(argc, argv);
 
@@ -15465,8 +15764,8 @@ int main(int argc, char **argv) {
                 outputFile << content << std::endl;
                 outputFile.close();
             }
-            else {
-                std::cout << content << std::endl;
+            else { // LCOV_EXCL_LINE
+                std::cout << content << std::endl; // LCOV_EXCL_LINE
             }
         }
     }
@@ -15475,6 +15774,35 @@ int main(int argc, char **argv) {
     }
 
     return retVal;
+}
+
+#endif
+/*
+ * Copyright (C) 2017-2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// This test for a compiler definition is necessary to preserve single-file, header-only compability.
+#ifndef HAVE_CLUON_MSC
+#include "cluon-msc.hpp"
+#endif
+
+#include <cstdint>
+
+int32_t main(int32_t argc, char **argv) {
+    return cluon_msc(argc, argv);
 }
 #endif
 #ifdef HAVE_CLUON_REPLAY
@@ -15495,6 +15823,9 @@ int main(int argc, char **argv) {
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef CLUON_REPLAY_HPP
+#define CLUON_REPLAY_HPP
+
 //#include "cluon/cluon.hpp"
 //#include "cluon/Envelope.hpp"
 //#include "cluon/OD4Session.hpp"
@@ -15510,7 +15841,7 @@ int main(int argc, char **argv) {
 #include <string>
 #include <thread>
 
-int main(int argc, char **argv) {
+inline int32_t cluon_replay(int32_t argc, char **argv, bool monitorSTDIN) {
     int32_t retCode{0};
     const std::string PROGRAM{argv[0]}; // NOLINT
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -15535,25 +15866,42 @@ int main(int argc, char **argv) {
 
         std::fstream fin(recFile, std::ios::in|std::ios::binary);
         if (fin.good()) {
-            // Listen for data from stdin.
             std::atomic<bool> playCommandUpdate{false};
             std::mutex playerCommandMutex;
             cluon::data::PlayerCommand playerCommand;
-            std::thread t([&playCommandUpdate, &playerCommandMutex, &playerCommand](){
-                while (std::cin.good()) {
-                    auto tmp{cluon::extractEnvelope(std::cin)};
-                    if (tmp.first) {
-                        if (tmp.second.dataType() == cluon::data::PlayerCommand::ID()) {
-                            cluon::data::PlayerCommand pc = cluon::extractMessage<cluon::data::PlayerCommand>(std::move(tmp.second));
-                            {
-                                std::lock_guard<std::mutex> lck(playerCommandMutex);
-                                playerCommand = pc;
-                            }
-                            playCommandUpdate = true;
+
+            auto playerCommandHandler = [&playCommandUpdate, &playerCommandMutex, &playerCommand](cluon::data::Envelope &&env){
+                cluon::data::PlayerCommand pc = cluon::extractMessage<cluon::data::PlayerCommand>(std::move(env));
+                {
+                    std::lock_guard<std::mutex> lck(playerCommandMutex);
+                    playerCommand = pc;
+                }
+                playCommandUpdate = true;
+            };
+
+            // OD4Session.
+            std::unique_ptr<cluon::OD4Session> od4;
+            if (0 != commandlineArguments.count("cid")) {
+                // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
+                od4 = std::make_unique<cluon::OD4Session>(static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))); // LCOV_EXCL_LINE
+                if (od4 && !monitorSTDIN) {
+                    od4->dataTrigger(cluon::data::PlayerCommand::ID(), playerCommandHandler);
+                }
+            }
+
+            // Listen for data from stdin.
+            std::unique_ptr<std::thread> stdinMonitoringThread;
+            if (monitorSTDIN) {
+                stdinMonitoringThread = std::make_unique<std::thread>([&playerCommandHandler](){ // LCOV_EXCL_LINE
+                    while (std::cin.good()) { // LCOV_EXCL_LINE
+                        auto tmp{cluon::extractEnvelope(std::cin)}; // LCOV_EXCL_LINE
+                        if (tmp.first && (tmp.second.dataType() == cluon::data::PlayerCommand::ID())) { // LCOV_EXCL_LINE
+                            cluon::data::Envelope env = tmp.second; // LCOV_EXCL_LINE
+                            playerCommandHandler(std::move(env)); // LCOV_EXCL_LINE
                         }
                     }
-                }
-            });
+                }); // LCOV_EXCL_LINE
+            }
 
             // Listen for PlayerStatus updates.
             std::atomic<bool> playerStatusUpdate{false};
@@ -15566,13 +15914,6 @@ int main(int argc, char **argv) {
                 }
                 playerStatusUpdate = true;
             };
-
-            // OD4Session.
-            std::unique_ptr<cluon::OD4Session> od4;
-            if (0 != commandlineArguments.count("cid")) {
-                // Interface to a running OpenDaVINCI session (ignoring any incoming Envelopes).
-                od4 = std::make_unique<cluon::OD4Session>(static_cast<uint16_t>(std::stoi(commandlineArguments["cid"])), [](auto){});
-            }
 
             {
                 std::string s;
@@ -15605,7 +15946,7 @@ int main(int argc, char **argv) {
 
             {
                 std::string s;
-                playerStatus.numberOfEntries(player.getTotalNumberOfEnvelopesInRecFile());
+                playerStatus.numberOfEntries(player.totalNumberOfEnvelopesInRecFile());
                 playerStatus.state(2); // playback file
                 {
                     std::lock_guard<std::mutex> lck(playerStatusMutex);
@@ -15647,10 +15988,12 @@ int main(int argc, char **argv) {
                        .serializedData(s);
 
                     if (od4 && od4->isRunning()) {
-                        od4->send(std::move(env));
+                        cluon::data::Envelope e = env;
+                        od4->send(std::move(e));
                     }
-                    else {
-                        std::cout << cluon::serializeEnvelope(std::move(env));
+                    if (playBackToStdout) {
+                        cluon::data::Envelope e = env;
+                        std::cout << cluon::serializeEnvelope(std::move(e));
                         std::cout.flush();
                     }
                     playerStatusUpdate = false;
@@ -15658,7 +16001,7 @@ int main(int argc, char **argv) {
                 if (playCommandUpdate) {
                     std::lock_guard<std::mutex> lck(playerCommandMutex);
                     if ( (playerCommand.command() == 1) || (playerCommand.command() == 2) ) {
-                        play = !(2 == playerCommand.command());
+                        play = !(2 == playerCommand.command()); // LCOV_EXCL_LINE
                     }
 
                     std::clog << PROGRAM << ": Change state: " << +playerCommand.command() << ", play = " << play << std::endl;
@@ -15673,25 +16016,60 @@ int main(int argc, char **argv) {
                     auto next = player.getNextEnvelopeToBeReplayed();
                     if (next.first) {
                         if (od4 && od4->isRunning()) {
-                            od4->send(std::move(next.second));
+                            cluon::data::Envelope e = next.second;
+                            od4->send(std::move(e));
                         }
                         if (playBackToStdout) {
-                            std::cout << cluon::serializeEnvelope(std::move(next.second));
+                            cluon::data::Envelope e = next.second;
+                            std::cout << cluon::serializeEnvelope(std::move(e));
                             std::cout.flush();
                         }
-                        std::this_thread::sleep_for(std::chrono::duration<int32_t, std::micro>(player.getDelay()));
+                        std::this_thread::sleep_for(std::chrono::duration<int32_t, std::micro>(player.delay()));
                     }
                 }
                 else {
-                    std::this_thread::sleep_for(std::chrono::duration<int32_t, std::milli>(100));
-                }
+                    std::this_thread::sleep_for(std::chrono::duration<int32_t, std::milli>(100)); // LCOV_EXCL_LINE
+                } // LCOV_EXCL_LINE
             }
+            retCode = 0;
         }
         else {
             std::cerr << PROGRAM << ": file '" << recFile << "' not found." << std::endl;
+            retCode = 1;
         }
     }
     return retCode;
+}
+
+#endif
+
+/*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// This test for a compiler definition is necessary to preserve single-file, header-only compability.
+#ifndef HAVE_CLUON_REPLAY
+#include "cluon-replay.hpp"
+#endif
+
+#include <cstdint>
+
+int32_t main(int32_t argc, char **argv) {
+    constexpr bool monitorSTDIN{true};
+    return cluon_replay(argc, argv, monitorSTDIN);
 }
 #endif
 #ifdef HAVE_CLUON_LIVEFEED
@@ -15712,12 +16090,16 @@ int main(int argc, char **argv) {
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef CLUON_LIVEFEED_HPP
+#define CLUON_LIVEFEED_HPP
+
 //#include "cluon/cluon.hpp"
 //#include "cluon/MetaMessage.hpp"
 //#include "cluon/MessageParser.hpp"
 //#include "cluon/OD4Session.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -15734,19 +16116,15 @@ enum Color {
     DEFAULT = 39,
 };
 
-void clearScreen();
-void writeText(Color c, uint8_t y, uint8_t x, const std::string &text);
-std::string formatTimeStamp(const cluon::data::TimeStamp &ts);
-
-void clearScreen() {
+inline void clearScreen() {
     std::cout << "\033[2J" << std::endl;
 }
 
-void writeText(Color c, uint8_t y, uint8_t x, const std::string &text) {
+inline void writeText(Color c, uint8_t y, uint8_t x, const std::string &text) {
     std::cout << "\033[" << +y << ";" << +x << "H" << "\033[0;" << +c << "m" << text << "\033[0m" << std::endl;
 }
 
-std::string formatTimeStamp(const cluon::data::TimeStamp &ts) {
+inline std::string formatTimeStamp(const cluon::data::TimeStamp &ts) {
     std::time_t temp = static_cast<std::time_t>(ts.seconds());
     std::tm* t = std::gmtime(&temp);
     std::stringstream sstr;
@@ -15755,7 +16133,7 @@ std::string formatTimeStamp(const cluon::data::TimeStamp &ts) {
     return str;
 }
 
-int main(int argc, char **argv) {
+inline int32_t cluon_livefeed(int32_t argc, char **argv) {
     int retVal{1};
     const std::string PROGRAM{argv[0]}; // NOLINT
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -15830,14 +16208,46 @@ int main(int argc, char **argv) {
             }
         });
 
-        using namespace std::literals::chrono_literals; // NOLINT
-        while (od4Session.isRunning()) {
-            std::this_thread::sleep_for(1s);
-        }
+        if (od4Session.isRunning()) {
+            using namespace std::literals::chrono_literals; // NOLINT
+            while (od4Session.isRunning()) {
+                std::this_thread::sleep_for(1s);
+            }
 
-        retVal = 0;
+            retVal = 0;
+        }
     }
     return retVal;
+}
+
+#endif
+
+/*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// This test for a compiler definition is necessary to preserve single-file, header-only compability.
+#ifndef HAVE_CLUON_LIVEFEED
+#include "cluon-livefeed.hpp"
+#endif
+
+#include <cstdint>
+
+int32_t main(int32_t argc, char **argv) {
+    return cluon_livefeed(argc, argv);
 }
 #endif
 #ifdef HAVE_CLUON_REC2CSV
@@ -15858,6 +16268,9 @@ int main(int argc, char **argv) {
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef CLUON_REC2CSV_HPP
+#define CLUON_REC2CSV_HPP
+
 //#include "cluon/cluon.hpp"
 //#include "cluon/GenericMessage.hpp"
 //#include "cluon/MessageParser.hpp"
@@ -15875,7 +16288,7 @@ int main(int argc, char **argv) {
 #include <string>
 #include <thread>
 
-int32_t main(int32_t argc, char **argv) {
+inline int32_t cluon_rec2csv(int32_t argc, char **argv) {
     int32_t retCode{0};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("rec")) || (0 == commandlineArguments.count("odvd")) ) {
@@ -15900,7 +16313,7 @@ int32_t main(int32_t argc, char **argv) {
             }
             else {
                 std::cerr << argv[0] << ": Message specification '" << commandlineArguments["odvd"] << "' not found." << std::endl;
-                return retCode;
+                return retCode = 1;
             }
         }
 
@@ -15923,7 +16336,7 @@ int32_t main(int32_t argc, char **argv) {
                 if (next.first) {
                     {
                         envelopeCounter++;
-                        const int32_t percentage = static_cast<int32_t>((static_cast<float>(envelopeCounter)*100.0f)/static_cast<float>(player.getTotalNumberOfEnvelopesInRecFile()));
+                        const int32_t percentage = static_cast<int32_t>((static_cast<float>(envelopeCounter)*100.0f)/static_cast<float>(player.totalNumberOfEnvelopesInRecFile()));
                         if ( (percentage % 5 == 0) && (percentage != oldPercentage) ) {
                             std::cerr << argv[0] << ": Processed " << percentage << "%." << std::endl;
                             oldPercentage = percentage;
@@ -15995,8 +16408,38 @@ int32_t main(int32_t argc, char **argv) {
         }
         else {
             std::cerr << argv[0] << ": Recording '" << commandlineArguments["rec"] << "' not found." << std::endl;
+            retCode = 1;
         }
     }
     return retCode;
+}
+
+#endif
+/*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// This test for a compiler definition is necessary to preserve single-file, header-only compability.
+#ifndef HAVE_CLUON_REC2CSV
+#include "cluon-rec2csv.hpp"
+#endif
+
+#include <cstdint>
+
+int32_t main(int32_t argc, char **argv) {
+    return cluon_rec2csv(argc, argv);
 }
 #endif

@@ -103,11 +103,15 @@ message opendlv.proxy.TorqueReading [id = 1036] {
 }
 
 message opendlv.proxy.VoltageReading [id = 1037] {
-  float torque [id = 1];
+  float voltage [id = 1];
 }
 
 message opendlv.proxy.AngleReading [id = 1038] {
   float angle [id = 1];
+}
+
+message opendlv.proxy.DistanceReading [id = 1039] {
+  float distance [id = 1];
 }
 
 message opendlv.proxy.SwitchStateReading [id = 1040] {
@@ -126,8 +130,12 @@ message opendlv.proxy.GroundSpeedReading [id = 1046] {
   float groundSpeed [id = 1];
 }
 
+message opendlv.proxy.WheelSpeedReading [id = 1047] {
+  float wheelSpeed [id = 1];
+}
+
 message opendlv.proxy.WeightReading [id = 1050] {
-  float torque [id = 1];
+  float weight [id = 1];
 }
 
 message opendlv.proxy.GeodeticHeadingReading [id = 1051] {
@@ -181,7 +189,7 @@ message opendlv.proxy.TorqueRequest [id = 1082] {
 }
 
 message opendlv.proxy.VoltageRequest [id = 1083] {
-  float torque [id = 1];
+  float voltage [id = 1];
 }
 
 message opendlv.proxy.AngleRequest [id = 1084] {
@@ -214,6 +222,10 @@ message opendlv.proxy.GroundAccelerationRequest [id = 1092] {
 
 message opendlv.proxy.GroundDecelerationRequest [id = 1093] {
   float groundDeceleration [id = 1];
+}
+
+message opendlv.proxy.WheelSpeedRequest [id = 1094] {
+  float wheelSpeed [id = 1];
 }
 
 // V2xRequest?
@@ -312,20 +324,20 @@ message opendlv.logic.perception.GroundSurfaceProperty [id = 1142] {
 
 message opendlv.logic.perception.GroundSurfaceArea [id = 1143] {
   uint32 surfaceId [id = 1];
-  float leftPerpendicularAngle [id = 2];
-  float leftDistance [id = 3];
-  float rightPerpendicularAngle [id = 4];
-  float rightDistance [id = 5];
-  float nearPerpendicularAngle [id = 6];
-  float nearDistance [id = 7];
-  float farPerpendicularAngle [id = 8];
-  float farDistance [id = 9];
+  float x1 [id = 2];
+  float y1 [id = 3];
+  float x2 [id = 4];
+  float y2 [id = 5];
+  float x3 [id = 6];
+  float y3 [id = 7];
+  float x4 [id = 8];
+  float y4 [id = 9];
 }
 
 
 message opendlv.logic.action.AimDirection [id = 1171] {
   float azimuthAngle [id = 1];
-  float zentihAngle [id = 2];
+  float zenithAngle [id = 2];
 }
 
 message opendlv.logic.action.AimPoint [id = 1172] {
@@ -347,4 +359,3 @@ message opendlv.logic.cognition.GroundSteeringLimit [id = 1191] {
 message opendlv.logic.cognition.GroundSpeedLimit [id = 1192] {
   float speedLimit [id = 1];
 }
-

@@ -19,8 +19,8 @@ project(opendlv-device-camera-opencv)
 
 ################################################################################
 # Defining the relevant versions of OpenDLV Standard Message Set and libcluon.
-set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.1.odvd)
-set(CLUON_COMPLETE cluon-complete-v0.0.77.hpp)
+set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.4.odvd)
+set(CLUON_COMPLETE cluon-complete-v0.0.99.hpp)
 
 ################################################################################
 # Set the search path for .cmake files.
@@ -72,18 +72,9 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp
 include_directories(SYSTEM ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-
-IF(UNIX)
-    SET(JPEG_COMPILE_FLAGS "-Wno-effc++ -Wno-error -Wno-sign-compare -Wno-unused-parameter -Wno-shadow")
-    IF (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7)
-        SET(JPEG_COMPILE_FLAGS "${JPEG_COMPILE_FLAGS} -Wno-unused-but-set-variable -Wno-suggest-attribute=format")
-    ENDIF()
-    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp PROPERTIES COMPILE_FLAGS "${JPEG_COMPILE_FLAGS}")
-ENDIF()
-
 ################################################################################
 # Gather all object code first to avoid double compilation.
-add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
+add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
 set(LIBRARIES Threads::Threads)
 
 if(UNIX)
@@ -94,13 +85,9 @@ if(UNIX)
     endif()
 endif()
 
-find_package(X11 REQUIRED)
-include_directories(SYSTEM ${X11_INCLUDE_DIR})
-set(LIBRARIES ${LIBRARIES} ${X11_X11_LIB})
-
-find_package(Libswscale REQUIRED)
-include_directories(SYSTEM ${FFMPEGMODULES_INCLUDE_DIRS})
-set(LIBRARIES ${LIBRARIES} ${FFMPEGMODULES_LIBRARIES})
+find_package(OpenCV REQUIRED core highgui videoio)
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+set(LIBRARIES ${LIBRARIES} ${OpenCV_LIBS})
 
 ################################################################################
 # Create executable.
