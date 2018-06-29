@@ -25,14 +25,15 @@ docker run \
            -v /dev/shm:/dev/shm \
            --ulimit memlock=2359296:2359296 \
            producer:latest \
-               --camera=/dev/video0 \
-               --cid=111 \
-               --name=camera0 \
-               --width=1024 \
-               --height=768 \
-               --bpp=24 \
-               --freq=5 \
-               --verbose
+              --cid=111 \
+              --stream_address=/dev/video0 \
+              --width=1024 \
+              --height=768 \
+              --bpp=24 \
+              --name=opencv \
+              --bgr2rgb \
+              --verbose
+
 ```
 
 The directory `example` contains a small program that demonstrates how to access the shared memory that is created from the previous microservice. You can build it as follows:

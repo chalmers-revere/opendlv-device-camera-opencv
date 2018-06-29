@@ -147,7 +147,12 @@ message opendlv.proxy.GeodeticWgs84Reading [id = 19] {
   double longitude [id = 3];
 }
 
-// opendlv.proxy.ImageReading [id = ]
+message opendlv.proxy.ImageReading [id = 1055] {
+    string format [id = 1];
+    uint32 width [id = 2];
+    uint32 height [id = 3];
+    string data [id = 4];
+}
 
 message opendlv.proxy.ImageReadingShared [id = 14] {
     string name [id = 1];
@@ -260,8 +265,8 @@ message opendlv.logic.sensation.Point [id = 1111] {
 }
 
 message opendlv.logic.sensation.Geolocation [id = 1116] {
-  float latitude [id = 1];
-  float longitude [id = 2];
+  double latitude [id = 1];
+  double longitude [id = 2];
   float altitude [id = 3];
   float heading [id = 4];
 }
