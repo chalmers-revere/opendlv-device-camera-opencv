@@ -12,15 +12,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+endif(CCACHE_FOUND)
 cmake_minimum_required(VERSION 3.2)
 
 project(opendlv-device-camera-opencv)
 
 ################################################################################
 # Defining the relevant versions of OpenDLV Standard Message Set and libcluon.
-set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.1.odvd)
-set(CLUON_COMPLETE cluon-complete-v0.0.77.hpp)
+set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.5.odvd)
+set(CLUON_COMPLETE cluon-complete-v0.0.102.hpp)
 
 ################################################################################
 # Set the search path for .cmake files.
@@ -51,16 +55,28 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
 # Threads are necessary for linking the resulting binaries as UDPReceiver is running in parallel.
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+find_program(FOUND_CLUON cluon-msc)
 
 ################################################################################
+# Find installed libcluon
+if(FOUND_CLUON)
+    message(STATUS "Libcluon: found at " ${FOUND_CLUON})
+    add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/cluon-msc
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${FOUND_CLUON} ${CMAKE_BINARY_DIR}/cluon-msc
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/src/${CLUON_COMPLETE} ${CMAKE_BINARY_DIR}/cluon-complete.hpp
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/cluon-complete.hpp ${CMAKE_BINARY_DIR}/cluon-complete.cpp)
+else()
+################################################################################
 # Extract cluon-msc from cluon-complete.hpp.
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/cluon-msc
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/src/${CLUON_COMPLETE} ${CMAKE_BINARY_DIR}/cluon-complete.hpp
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/cluon-complete.hpp ${CMAKE_BINARY_DIR}/cluon-complete.cpp
-    COMMAND ${CMAKE_CXX_COMPILER} -o ${CMAKE_BINARY_DIR}/cluon-msc ${CMAKE_BINARY_DIR}/cluon-complete.cpp -std=c++14 -pthread -D HAVE_CLUON_MSC
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${CLUON_COMPLETE})
-
+    message(STATUS "Libcluon: not found - generating cluon-msc from header file")
+    add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/cluon-msc
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/src/${CLUON_COMPLETE} ${CMAKE_BINARY_DIR}/cluon-complete.hpp
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/cluon-complete.hpp ${CMAKE_BINARY_DIR}/cluon-complete.cpp
+        COMMAND ${CMAKE_CXX_COMPILER} -o ${CMAKE_BINARY_DIR}/cluon-msc ${CMAKE_BINARY_DIR}/cluon-complete.cpp -std=c++14 -pthread -D HAVE_CLUON_MSC
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${CLUON_COMPLETE}) 
+endif()
 ################################################################################
 # Generate opendlv-standard-message-set.{hpp,cpp} from ${OPENDLV_STANDARD_MESSAGE_SET} file.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp
@@ -72,18 +88,9 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp
 include_directories(SYSTEM ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-
-IF(UNIX)
-    SET(JPEG_COMPILE_FLAGS "-Wno-effc++ -Wno-error -Wno-sign-compare -Wno-unused-parameter -Wno-shadow")
-    IF (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7)
-        SET(JPEG_COMPILE_FLAGS "${JPEG_COMPILE_FLAGS} -Wno-unused-but-set-variable -Wno-suggest-attribute=format")
-    ENDIF()
-    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp PROPERTIES COMPILE_FLAGS "${JPEG_COMPILE_FLAGS}")
-ENDIF()
-
 ################################################################################
 # Gather all object code first to avoid double compilation.
-add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/jpgd.cpp ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
+add_library(${PROJECT_NAME}-core OBJECT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
 set(LIBRARIES Threads::Threads)
 
 if(UNIX)
@@ -94,13 +101,9 @@ if(UNIX)
     endif()
 endif()
 
-find_package(X11 REQUIRED)
-include_directories(SYSTEM ${X11_INCLUDE_DIR})
-set(LIBRARIES ${LIBRARIES} ${X11_X11_LIB})
-
-find_package(Libswscale REQUIRED)
-include_directories(SYSTEM ${FFMPEGMODULES_INCLUDE_DIRS})
-set(LIBRARIES ${LIBRARIES} ${FFMPEGMODULES_LIBRARIES})
+find_package(OpenCV REQUIRED core highgui videoio)
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+set(LIBRARIES ${LIBRARIES} ${OpenCV_LIBS})
 
 ################################################################################
 # Create executable.
