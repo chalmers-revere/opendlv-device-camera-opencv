@@ -62,4 +62,3 @@ docker run \
                --bpp=24 \
                --verbose
 ```
-string("http://revere:AUTOnomous@192.168.0.5/axis-cgi/mjpg/video.cgi?user=revere&password=AUTOnomous&channel=0&.mjpg"
