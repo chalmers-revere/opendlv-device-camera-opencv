@@ -104,7 +104,7 @@ int32_t main(int32_t argc, char **argv) {
                                                WIDTH, HEIGHT);
                         }
                         if ( (3 == frame.channels()) && (16 == frame.type()) ) {
-                            libyuv::RGB24ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * (24 == BPP ? 3 : 1),
+                            libyuv::RGB24ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * 3 /* 3*WIDTH for RGB24*/,
                                                 reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
                                                 reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
                                                 reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
