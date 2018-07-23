@@ -12,19 +12,22 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-endif(CCACHE_FOUND)
+
 cmake_minimum_required(VERSION 3.2)
 
 project(opendlv-device-camera-opencv)
 
 ################################################################################
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+endif(CCACHE_FOUND)
+
+################################################################################
 # Defining the relevant versions of OpenDLV Standard Message Set and libcluon.
 set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.5.odvd)
-set(CLUON_COMPLETE cluon-complete-v0.0.104.hpp)
+set(CLUON_COMPLETE cluon-complete-v0.0.105.hpp)
 
 ################################################################################
 # Set the search path for .cmake files.
@@ -52,13 +55,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
     -Wunused -Wunused-function -Wunused-label -Wunused-parameter -Wunused-but-set-parameter -Wunused-but-set-variable \
     -Wunused-value -Wunused-variable -Wunused-result \
     -Wmissing-field-initializers -Wmissing-format-attribute -Wmissing-include-dirs -Wmissing-noreturn")
-# Threads are necessary for linking the resulting binaries as UDPReceiver is running in parallel.
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-find_program(FOUND_CLUON cluon-msc)
 
 ################################################################################
 # Find installed libcluon
+find_program(FOUND_CLUON cluon-msc)
 if(FOUND_CLUON)
     message(STATUS "Libcluon: found at " ${FOUND_CLUON})
     add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/cluon-msc
@@ -87,8 +87,11 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.hpp
 include_directories(SYSTEM ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+################################################################################
+# Threads are necessary for linking the resulting binaries as UDPReceiver is running in parallel.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 set(LIBRARIES Threads::Threads)
-
 if(UNIX)
     if(NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
         find_package(LibRT REQUIRED)
