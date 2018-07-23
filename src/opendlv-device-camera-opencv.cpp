@@ -66,7 +66,8 @@ int32_t main(int32_t argc, char **argv) {
         if (capture.isOpened()) {
             capture.set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
             capture.set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
-            capture.set(CV_CAP_PROP_FORMAT, (24 == BPP ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
+            capture.set(CV_CAP_PROP_FPS, static_cast<uint32_t>(FREQ));
+            capture.set(CV_CAP_PROP_CONVERT_RGB, false);
         }
         else {
             std::cerr << argv[0] << "Could not open camera '" << CAMERA << "'" << std::endl;
@@ -96,11 +97,16 @@ int32_t main(int32_t argc, char **argv) {
                 if (capture.read(frame)) {
                     sharedMemoryI420->lock();
                     {
-                        libyuv::RGB24ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * (24 == BPP ? 3 : 1),
-                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
-                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
-                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
-                                            WIDTH, HEIGHT);
+//                        libyuv::RGB24ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * (24 == BPP ? 3 : 1),
+//                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
+//                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
+//                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
+//                                            WIDTH, HEIGHT);
+                        libyuv::YUY2ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * 2 /* 2*WIDTH for YUYV 422*/,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
+                                           WIDTH, HEIGHT);
                     }
                     sharedMemoryI420->unlock();
 
@@ -119,7 +125,7 @@ int32_t main(int32_t argc, char **argv) {
 
                     sharedMemoryI420->notifyAll();
                     sharedMemoryARGB->notifyAll();
-                    cv::waitKey(static_cast<uint32_t>(1000/FREQ));
+//                    cv::waitKey(static_cast<uint32_t>(1000/FREQ));
                 }
             }
         }
