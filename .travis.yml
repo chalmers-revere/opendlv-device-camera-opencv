@@ -1,0 +1,34 @@
+language: cpp
+
+branches:
+  only:
+  - "/^master$/"
+  - "/^pre-release$/"
+
+cache: ccache
+
+compiler:
+- gcc
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - g++-6
+    - libopencv-dev
+
+install:
+- "[ $CC = gcc ] && export CC=gcc-6 || true"
+- "[ $CXX = g++ ] && export CXX=g++-6 || true"
+
+script:
+- git clone --depth 1 https://chromium.googlesource.com/libyuv/libyuv && cd libyuv && make -f linux.mk libyuv.a && sudo cp libyuv.a /usr/lib && cd include && sudo cp -r * /usr/include && cd ../..
+- mkdir -p build && cd build && cmake .. && make
+
+notifications:
+  email:
+    on_success: never
+    on_failure: never
+  slack:
+    secure: t7SWONCSduDHQvy4xgL7fNVSuWdlvC7mTYlpW7uTCAO1IMfaoRHj/Vzuz6svE02BOyRQSWhapwcFrH9zdz2bwoTf7u7Q8aiOHUj8GroqS9wOjtIl10x++4P30mywoVp5u4DvH7tiSh5q0dwLwLCsQt/ZvSLDsku/vlZ35BybQyf2KLIWlGWPW9ead5/w+EbuDCLJ2ot/4/DknFh/x5+83Q6QeRF2EXnatfshd2j626DPjkEJo6O+PCfbgftXXsbBpi79n5lrznXwrf3F/xKvbZ3Cbrtr0QCHS1VAX5iKV2CDgDhw2YqSB+fj/VsP3K5RktsfA38aXKyqP4y1ddBCUN4kFwH+31r0QQqR2hLKOnaBR31ulgBQKDjfD+DA+hRwdUb+JuqbdhQV2BFvsCzklkG3yzmemmEpNAZ3E86sq7y24ps9qFfys2BMggFHzhosO0AH4sUMwvfsTzt5pxI00nJ0YfrLwy/0XAn1RoW21q9WAGHmrh91/FbbjS/CqWBxPZSCetCBpabc2NhLj9zqDfR+gWQ5YwH3WC/9GbRYMimbrkNy8IBHORhCkJ0trAvW+Dm42Q01qwYe+AcJZ4sUrwlZaGTrYdpXqIGLxWeq558x4UK38bhQpUsU107a62Zcm3R4nkpD5swYWqiqnitbwg9nThE3ifBDcML8y94ea2M=
