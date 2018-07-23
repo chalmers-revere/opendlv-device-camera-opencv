@@ -34,7 +34,8 @@ int32_t main(int32_t argc, char **argv) {
     if ( (0 == commandlineArguments.count("camera")) ||
          (0 == commandlineArguments.count("width")) ||
          (0 == commandlineArguments.count("height")) ||
-         (0 == commandlineArguments.count("bpp")) ) {
+         (0 == commandlineArguments.count("bpp")) ||
+         (0 == commandlineArguments.count("freq")) ) {
         std::cerr << argv[0] << " interfaces with the given OpenCV-encapsulated camera (e.g., a V4L identifier like 0 or a stream address) and provides the captured image in two shared memory areas: one in I420 format and one in ARGB format." << std::endl;
         std::cerr << "Usage:   " << argv[0] << " --camera=<V4L dev node> --width=<width> --height=<height> --bpp=<8 or 24> [--name.i420=<unique name for the shared memory in I420 format>] [--name.argb=<unique name for the shared memory in ARGB format>] [--verbose]" << std::endl;
         std::cerr << "         --camera:    Camera to be used (can be a V4L identifier, e.g. 0, or a stream address)" << std::endl;
@@ -43,8 +44,9 @@ int32_t main(int32_t argc, char **argv) {
         std::cerr << "         --width:     desired width of a frame" << std::endl;
         std::cerr << "         --height:    desired height of a frame" << std::endl;
         std::cerr << "         --bpp:       desired bits per pixel of a frame (must be either 8 or 24)" << std::endl;
+        std::cerr << "         --freq:      desired frame rate" << std::endl;
         std::cerr << "         --verbose:   display captured image" << std::endl;
-        std::cerr << "Example: " << argv[0] << " --camera=0 --width=640 --height=480 --freq=20 --verbose" << std::endl;
+        std::cerr << "Example: " << argv[0] << " --camera=0 --width=640 --height=480 --bpp=24 --freq=20 --verbose" << std::endl;
     } else {
         const std::string CAMERA{commandlineArguments["camera"]};
         const std::string NAME_I420{(commandlineArguments["name.i420"].size() != 0) ? commandlineArguments["name.i420"] : "video0.i420"};
@@ -52,6 +54,12 @@ int32_t main(int32_t argc, char **argv) {
         const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
         const uint32_t HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
         const uint32_t BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
+        const float FREQ{static_cast<float>(std::stof(commandlineArguments["freq"]))};
+        if ( !(FREQ > 0) ) {
+            std::cerr << argv[0] << ": freq must be larger than 0; found " << FREQ << "." << std::endl;
+            return retCode;
+        }
+
         const bool VERBOSE{commandlineArguments.count("verbose") != 0};
 
         cv::VideoCapture capture(CAMERA);
@@ -111,7 +119,7 @@ int32_t main(int32_t argc, char **argv) {
 
                     sharedMemoryI420->notifyAll();
                     sharedMemoryARGB->notifyAll();
-                    cv::waitKey(1);
+                    cv::waitKey(static_cast<uint32_t>(1000/FREQ));
                 }
             }
         }
