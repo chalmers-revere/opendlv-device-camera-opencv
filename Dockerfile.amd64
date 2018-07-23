@@ -15,7 +15,7 @@
 
 # Part to build opendlv-device-camera-opencv.
 FROM alpine:3.7 as builder
-MAINTAINER Ola Benderius "ola.benderius@chalmers.se"
+MAINTAINER Christian Berger "christian.berger@gu.se"
 RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories && \
     echo http://dl-4.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories && \
     echo http://dl-4.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
