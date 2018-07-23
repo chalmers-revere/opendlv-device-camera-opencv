@@ -15,7 +15,7 @@ compiler:
 - gcc
 
 script:
-- docker build -t test -f Dockerfile.amd64
+- docker build -t test -f Dockerfile.amd64 .
 
 notifications:
   email:
