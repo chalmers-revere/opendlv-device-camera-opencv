@@ -23,10 +23,15 @@ RUN echo http://dl-4.alpinelinux.org/alpine/edge/main > /etc/apk/repositories &&
     apk --no-cache add \
         cmake \
         g++ \
+        git \
         opencv \
         opencv-dev \
         make \
         upx
+RUN cd /tmp && \
+    git clone --depth 1 https://chromium.googlesource.com/libyuv/libyuv && \
+    cd libyuv &&\
+    make -f linux.mk libyuv.a && cp libyuv.a /usr/lib && cd include && cp -r * /usr/include
 ADD . /opt/sources
 WORKDIR /opt/sources
 RUN mkdir build && \

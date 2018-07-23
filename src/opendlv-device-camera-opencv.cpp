@@ -15,75 +15,109 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
+#include "cluon-complete.hpp"
+
+#include <libyuv.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "cluon-complete.hpp"
-#include "opendlv-standard-message-set.hpp"
+#include <cstdint>
+#include <iostream>
+#include <memory>
+#include <string>
 
 int32_t main(int32_t argc, char **argv) {
-    int32_t retCode{0};
+    int32_t retCode{1};
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
-    if ( (0 == commandlineArguments.count("stream_address")) || (0 == commandlineArguments.count("cid")) || (0 == commandlineArguments.count("width")) || (0 == commandlineArguments.count("height")) || (0 == commandlineArguments.count("bpp")) ) {
-        std::cerr << argv[0] << " interfaces with the given V4L camera (e.g., /dev/video0) and publishes it to a running OpenDaVINCI session using the OpenDLV Standard Message Set." << std::endl;
-        std::cerr << "Usage:   " << argv[0] << " --stream_address=<Stream address> --cid=<OpenDaVINCI session> --width=<width> --height=<height> --bpp=<bits per pixel> [--name=<unique name for the associated shared memory>] [--verbose]" << std::endl;
-        std::cerr << "         --stream_address:    the stream address to load with OpenCV" << std::endl;
-        std::cerr << "         --width:   desired width of a frame" << std::endl;
-        std::cerr << "         --height:  desired height of a frame" << std::endl;
-        std::cerr << "         --bpp:     desired bits per pixel of a frame (must be either 8 or 24)" << std::endl;
-        std::cerr << "         --bgr2rgb: convert BGR to RGB" << std::endl;
-        std::cerr << "         --name:    when omitted, '/cam0' is chosen" << std::endl;
-        std::cerr << "         --verbose: when set, the raw image is displayed" << std::endl;
-        std::cerr << "Example: " << argv[0] << " --cid=111 --camera=/dev/video0 --name=cam0" << std::endl;
-        retCode = 1;
+    if ( (0 == commandlineArguments.count("camera")) ||
+         (0 == commandlineArguments.count("width")) ||
+         (0 == commandlineArguments.count("height")) ||
+         (0 == commandlineArguments.count("bpp")) ) {
+        std::cerr << argv[0] << " interfaces with the given OpenCV-encapsulated camera (e.g., a V4L identifier like 0 or a stream address) and provides the captured image in two shared memory areas: one in I420 format and one in ARGB format." << std::endl;
+        std::cerr << "Usage:   " << argv[0] << " --camera=<V4L dev node> --width=<width> --height=<height> --bpp=<8 or 24> [--name.i420=<unique name for the shared memory in I420 format>] [--name.argb=<unique name for the shared memory in ARGB format>] [--verbose]" << std::endl;
+        std::cerr << "         --camera:    Camera to be used (can be a V4L identifier, e.g. 0, or a stream address)" << std::endl;
+        std::cerr << "         --name.i420: name of the shared memory for the I420 formatted image; when omitted, video0.i420 is chosen" << std::endl;
+        std::cerr << "         --name.argb: name of the shared memory for the I420 formatted image; when omitted, video0.argb is chosen" << std::endl;
+        std::cerr << "         --width:     desired width of a frame" << std::endl;
+        std::cerr << "         --height:    desired height of a frame" << std::endl;
+        std::cerr << "         --bpp:       desired bits per pixel of a frame (must be either 8 or 24)" << std::endl;
+        std::cerr << "         --verbose:   display captured image" << std::endl;
+        std::cerr << "Example: " << argv[0] << " --camera=0 --width=640 --height=480 --freq=20 --verbose" << std::endl;
     } else {
-      uint32_t const WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
-      uint32_t const HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
-      uint32_t const BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
-      std::string VIDEO_STREAM_ADDRESS{commandlineArguments["stream_address"]};
+        const std::string CAMERA{commandlineArguments["camera"]};
+        const std::string NAME_I420{(commandlineArguments["name.i420"].size() != 0) ? commandlineArguments["name.i420"] : "video0.i420"};
+        const std::string NAME_ARGB{(commandlineArguments["name.argb"].size() != 0) ? commandlineArguments["name.argb"] : "video0.argb"};
+        const uint32_t WIDTH{static_cast<uint32_t>(std::stoi(commandlineArguments["width"]))};
+        const uint32_t HEIGHT{static_cast<uint32_t>(std::stoi(commandlineArguments["height"]))};
+        const uint32_t BPP{static_cast<uint32_t>(std::stoi(commandlineArguments["bpp"]))};
+        const bool VERBOSE{commandlineArguments.count("verbose") != 0};
 
-      uint32_t const SIZE{WIDTH * HEIGHT * BPP/8};
-      std::string const NAME{(commandlineArguments["name"].size() != 0) ? commandlineArguments["name"] : "/cam0"};
-      bool const VERBOSE{commandlineArguments.count("verbose") != 0};
-      bool const BGR2RGB{commandlineArguments.count("bgr2rgb") != 0};
-      (void) BGR2RGB;
-
-      cv::VideoCapture capture(VIDEO_STREAM_ADDRESS);
-      if (capture.isOpened()) {
-        capture.set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
-        capture.set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
-        capture.set(CV_CAP_PROP_FORMAT, (BPP == 24 ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
-      } else {
-        std::cerr << "Could not open camera '" << VIDEO_STREAM_ADDRESS << "'" << std::endl;
-      }
-
-      cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
-
-      std::unique_ptr<cluon::SharedMemory> sharedMemory(new cluon::SharedMemory{NAME, SIZE});
-      if (sharedMemory && sharedMemory->valid()) {
-        std::clog << argv[0] << ": Data from camera available in shared memory '" << sharedMemory->name() << "' (" << sharedMemory->size() << ")." << std::endl;
-
-        while (od4.isRunning()) {
-          cv::Mat frame;
-          if (capture.read(frame)) {
-            sharedMemory->lock();
-            ::memcpy(sharedMemory->data(), reinterpret_cast<char*>(frame.data), frame.step * frame.rows);
-            sharedMemory->unlock();
-            sharedMemory->notifyAll();
-            if (VERBOSE) {
-              cv::imshow(sharedMemory->name(), frame);
-            }
-            cv::waitKey(10);
-          }
+        cv::VideoCapture capture(CAMERA);
+        if (capture.isOpened()) {
+            capture.set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
+            capture.set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
+            capture.set(CV_CAP_PROP_FORMAT, (24 == BPP ? CV_CAP_MODE_RGB : CV_CAP_MODE_GRAY));
         }
-      } else {
-        std::cerr << argv[0] << ": Failed to create shared memory '" << NAME << "'." << std::endl;
-      }
+        else {
+            std::cerr << argv[0] << "Could not open camera '" << CAMERA << "'" << std::endl;
+            return retCode;
+        }
 
-      capture.release();
+        std::unique_ptr<cluon::SharedMemory> sharedMemoryI420(new cluon::SharedMemory{NAME_I420, WIDTH * HEIGHT * 3/2});
+        if (!sharedMemoryI420 || !sharedMemoryI420->valid()) {
+            std::cerr << argv[0] << ": Failed to create shared memory '" << NAME_I420 << "'." << std::endl;
+            return retCode;
+        }
+
+        std::unique_ptr<cluon::SharedMemory> sharedMemoryARGB(new cluon::SharedMemory{NAME_ARGB, WIDTH * HEIGHT * 4});
+        if (!sharedMemoryARGB || !sharedMemoryARGB->valid()) {
+            std::cerr << argv[0] << ": Failed to create shared memory '" << NAME_ARGB << "'." << std::endl;
+            return retCode;
+        }
+
+        if ( (sharedMemoryI420 && sharedMemoryI420->valid()) &&
+             (sharedMemoryARGB && sharedMemoryARGB->valid()) ) {
+            std::clog << argv[0] << ": Data from camera '" << CAMERA<< "' available in I420 format in shared memory '" << sharedMemoryI420->name() << "' (" << sharedMemoryI420->size() << ") and in ARGB format in shared memory '" << sharedMemoryARGB->name() << "' (" << sharedMemoryARGB->size() << ")." << std::endl;
+
+            cv::Mat ARGB(HEIGHT, WIDTH, CV_8UC4, sharedMemoryARGB->data());
+
+            while (!cluon::TerminateHandler::instance().isTerminated.load()) {
+                cv::Mat frame;
+                if (capture.read(frame)) {
+                    sharedMemoryI420->lock();
+                    {
+                        libyuv::RGB24ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * (24 == BPP ? 3 : 1),
+                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
+                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
+                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
+                                            WIDTH, HEIGHT);
+                    }
+                    sharedMemoryI420->unlock();
+
+                    sharedMemoryARGB->lock();
+                    {
+                        libyuv::I420ToARGB(reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT + ((WIDTH * HEIGHT) >> 2))), WIDTH/2,
+                                           reinterpret_cast<uint8_t*>(sharedMemoryARGB->data()), WIDTH * 4, WIDTH, HEIGHT);
+
+                        if (VERBOSE) {
+                            cv::imshow(sharedMemoryARGB->name(), ARGB);
+                        }
+                    }
+                    sharedMemoryARGB->unlock();
+
+                    sharedMemoryI420->notifyAll();
+                    sharedMemoryARGB->notifyAll();
+                    cv::waitKey(1);
+                }
+            }
+        }
+
+        capture.release();
+        retCode = 0;
     }
     return retCode;
 }
