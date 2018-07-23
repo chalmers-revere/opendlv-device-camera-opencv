@@ -1,64 +1,59 @@
-# opendlv-device-camera-opencv
-OpenDLV Microservice to interface with OpenCV-accessible camera devices
+## OpenDLV Microservice to interface with OpenCV-encapsulated cameras
 
-Adjusting the maximum size of pages in bytes that can be locked in RAM by adding the following lines to `/etc/security/limits.conf`:
+This repository provides source code to interface OpenCV-encapsulated cameras
+for the OpenDLV software ecosystem. This microservice provides the captured frames
+in two separate shared memory areas, one for a picture in [I420 format](https://wiki.videolan.org/YUV/#I420)
+and one in ARGB format.
 
-```
-*    hard   memlock           unlimited
-*    soft   memlock           unlimited
-```
+[![Build Status](https://travis-ci.org/chalmers-revere/opendlv-device-camera-opencv.svg?branch=master)](https://travis-ci.org/chalmers-revere/opendlv-device-camera-opencv) [![License: GPLv3](https://img.shields.io/badge/license-GPL--3-blue.svg
+)](https://www.gnu.org/licenses/gpl-3.0.txt)
 
-To use this microservice, your need to allow access to your X11 server:
-```
-xhost +
-```
 
-Next, you can start the streaming (omit `--verbose` to not display the window showing the raw image; the parameter ulimit specifies that maximum bytes to be locked in RAM and __must__ match or be larger with the desired video resolution: Width * Height * BitsPerPixel/8 + 100 bytes) with a network camera with login in credentials (user, password and ip):
-```
-docker run \
-           --rm \
-           -ti \
-           --init \
-           -v /tmp/.X11-unix:/tmp/.X11-unix \
-           --network host \
-           -e DISPLAY=$DISPLAY \
-           -v /dev/shm:/dev/shm \
-           --ulimit memlock=-1:-1 \
-           producer:latest \
-              --cid=111 \
-              --stream_address=http://user:password@ip/axis-cgi/mjpg/video.cgi\?channel=0\&.mjpg \
-              --width=1280 \
-              --height=720 \
-              --bpp=24 \
-              --name=opencv \
-              --bgr2rgb \
-              --verbose
+## Table of Contents
+* [Dependencies](#dependencies)
+* [Usage](#usage)
+* [Build from sources on the example of Ubuntu 16.04 LTS](#build-from-sources-on-the-example-of-ubuntu-1604-lts)
+* [License](#license)
 
-```
 
-The directory `example` contains a small program that demonstrates how to access the shared memory that is created from the previous microservice. You can build it as follows:
+## Dependencies
+You need a C++14-compliant compiler to compile this project. The following
+dependency is shipped as part of the source distribution:
+
+* [libcluon](https://github.com/chrberger/libcluon) - [![License: GPLv3](https://img.shields.io/badge/license-GPL--3-blue.svg
+)](https://www.gnu.org/licenses/gpl-3.0.txt)
+* [libyuv](https://chromium.googlesource.com/libyuv/libyuv/+/master) - [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) - [Google Patent License Conditions](https://chromium.googlesource.com/libyuv/libyuv/+/master/PATENTS)
+
+
+## Usage
+This microservice is created automatically on changes to this repository via Docker's public registry for:
+* [x86_64](https://hub.docker.com/r/chalmersrevere/opendlv-device-camera-opencv-amd64/tags/)
+* [armhf](https://hub.docker.com/r/chalmersrevere/opendlv-device-camera-opencv-armhf/tags/)
+* [aarch64](https://hub.docker.com/r/chalmersrevere/opendlv-device-camera-opencv-aarch64/tags/)
+
+To run this microservice using our pre-built Docker multi-arch images to open
+an OpenCV-encapsulated camera, simply start it as follows:
 
 ```
-cd example
-docker build -t consumer -f Dockerfile.amd64 .
+docker run --rm -ti --init --ipc=host -e DISPLAY=$DISPLAY --device /dev/video0 -v /tmp:/tmp chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.6 --camera=/dev/video0 --width=640 --height=480 --freq=20
 ```
 
-Finally, you can run the example as follows (obviously, the parameters must match with the settings for `producer`; the parameter ulimit specifies that maximum bytes to be locked in RAM):
+If you want to display the captured frames, simply append `--verbose` to the
+commandline above; you might also need to enable access to your X11 server: `xhost +`.
+
+## Build from sources on the example of Ubuntu 16.04 LTS
+To build this software, you need cmake, C++14 or newer, libopencv-dev
+(OpenCV 3 or newer), and make. Having these preconditions, just run `cmake` and
+`make` as follows:
 
 ```
-docker run \
-           --rm \
-           -ti \
-           --init \
-           -v /tmp/.X11-unix:/tmp/.X11-unix \
-           -e DISPLAY=$DISPLAY \
-           -v /dev/shm:/dev/shm \
-           --ulimit memlock=-1:-1 \
-           example \
-               --cid=111 \
-               --name=camera0 \
-               --width=1280 \
-               --height=720 \
-               --bpp=24 \
-               --verbose
+mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=Release ..
+make && make test && make install
 ```
+
+
+## License
+
+* This project is released under the terms of the GNU GPLv3 License
+
