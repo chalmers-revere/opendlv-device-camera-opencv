@@ -35,7 +35,7 @@ To run this microservice using our pre-built Docker multi-arch images to open
 an OpenCV-encapsulated camera, simply start it as follows:
 
 ```
-docker run --rm -ti --init --ipc=host -e DISPLAY=$DISPLAY --device /dev/video0 -v /tmp:/tmp chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.6 --camera=/dev/video0 --width=640 --height=480 --freq=20
+docker run --rm -ti --init --ipc=host -e DISPLAY=$DISPLAY --device /dev/video0 -v /tmp:/tmp chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.7 --camera=/dev/video0 --width=640 --height=480 --freq=20
 ```
 
 If you want to display the captured frames, simply append `--verbose` to the
