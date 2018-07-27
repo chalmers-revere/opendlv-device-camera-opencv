@@ -35,11 +35,14 @@ To run this microservice using our pre-built Docker multi-arch images to open
 an OpenCV-encapsulated camera, simply start it as follows:
 
 ```
-docker run --rm -ti --init --ipc=host -e DISPLAY=$DISPLAY --device /dev/video0 -v /tmp:/tmp chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.8 --camera=/dev/video0 --width=640 --height=480 --freq=20
+docker run --rm -ti --init --ipc=host -e DISPLAY=$DISPLAY --device /dev/video0 -v /tmp:/tmp chalmersrevere/opendlv-device-camera-opencv-multi:v0.0.9 --camera=/dev/video0 --width=640 --height=480 --freq=20
 ```
 
 If you want to display the captured frames, simply append `--verbose` to the
 commandline above; you might also need to enable access to your X11 server: `xhost +`.
+
+If you want to grab a frame from a capturing device that is producing YUYV422-formatted pixels,
+you can pass `--yuyv422` to avoid unnecessary color transformations.
 
 ## Build from sources on the example of Ubuntu 16.04 LTS
 To build this software, you need cmake, C++14 or newer, libopencv-dev
