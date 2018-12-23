@@ -98,7 +98,9 @@ int32_t main(int32_t argc, char **argv) {
             while (!cluon::TerminateHandler::instance().isTerminated.load()) {
                 cv::Mat frame;
                 if (capture.read(frame)) {
+                    cluon::data::TimeStamp ts{cluon::time::now()};
                     sharedMemoryI420->lock();
+                    sharedMemoryI420->setTimeStamp(ts);
                     {
                         if (IS_YUYV422) {
                             libyuv::YUY2ToI420(reinterpret_cast<uint8_t*>(frame.data), WIDTH * 2 /* 2*WIDTH for YUYV 422*/,
@@ -118,6 +120,7 @@ int32_t main(int32_t argc, char **argv) {
                     sharedMemoryI420->unlock();
 
                     sharedMemoryARGB->lock();
+                    sharedMemoryARGB->setTimeStamp(ts);
                     {
                         libyuv::I420ToARGB(reinterpret_cast<uint8_t*>(sharedMemoryI420->data()), WIDTH,
                                            reinterpret_cast<uint8_t*>(sharedMemoryI420->data()+(WIDTH * HEIGHT)), WIDTH/2,
