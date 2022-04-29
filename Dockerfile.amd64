@@ -17,8 +17,6 @@
 FROM alpine:3.15 as builder
 MAINTAINER Christian Berger "christian.berger@gu.se"
 RUN \ 
-# echo http://dl-4.alpinelinux.org/alpine/v3.15/main > /etc/apk/repositories && \
-    # echo http://dl-4.alpinelinux.org/alpine/v3.15/community >> /etc/apk/repositories && \
     echo http://dl-4.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
     apk update && \
     apk --no-cache add \
@@ -28,7 +26,6 @@ RUN \
         opencv \
         opencv-dev \
         make 
-  #      upx
 RUN cd /tmp && \
     git clone --depth 1 https://chromium.googlesource.com/libyuv/libyuv && \
     cd libyuv &&\
@@ -39,7 +36,6 @@ RUN mkdir build && \
     cd build && \
     cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp .. && \
     make && make install 
-# && upx -9 /tmp/bin/opendlv-device-camera-opencv
 
 # Part to deploy opendlv-device-camera-opencv.
 FROM alpine:3.15
