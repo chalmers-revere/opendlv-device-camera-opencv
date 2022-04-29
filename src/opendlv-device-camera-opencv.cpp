@@ -63,13 +63,13 @@ int32_t main(int32_t argc, char **argv) {
 
         cv::VideoCapture capture(CAMERA);
         if (capture.isOpened()) {
-            capture.set(CV_CAP_PROP_FRAME_WIDTH, WIDTH);
-            capture.set(CV_CAP_PROP_FRAME_HEIGHT, HEIGHT);
-            capture.set(CV_CAP_PROP_FPS, static_cast<uint32_t>(FREQ));
+            capture.set(cv::CAP_PROP_FRAME_WIDTH, WIDTH);
+            capture.set(cv::CAP_PROP_FRAME_HEIGHT, HEIGHT);
+            capture.set(cv::CAP_PROP_FPS, static_cast<uint32_t>(FREQ));
 
             // Avoid using OpenCV for tranforming incoming frame to RGB as this is expensive.
             if (IS_YUYV422) {
-                capture.set(CV_CAP_PROP_CONVERT_RGB, false);
+                capture.set(cv::CAP_PROP_CONVERT_RGB, false);
             }
         }
         else {
