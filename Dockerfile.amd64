@@ -14,10 +14,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Part to build opendlv-device-camera-opencv.
-FROM alpine:3.7 as builder
+FROM alpine:3.15 as builder
 MAINTAINER Christian Berger "christian.berger@gu.se"
-RUN echo http://dl-4.alpinelinux.org/alpine/v3.8/main > /etc/apk/repositories && \
-    echo http://dl-4.alpinelinux.org/alpine/v3.8/community >> /etc/apk/repositories && \
+RUN \ 
+# echo http://dl-4.alpinelinux.org/alpine/v3.15/main > /etc/apk/repositories && \
+    # echo http://dl-4.alpinelinux.org/alpine/v3.15/community >> /etc/apk/repositories && \
     echo http://dl-4.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
     apk update && \
     apk --no-cache add \
@@ -26,8 +27,8 @@ RUN echo http://dl-4.alpinelinux.org/alpine/v3.8/main > /etc/apk/repositories &&
         git \
         opencv \
         opencv-dev \
-        make \
-        upx
+        make 
+  #      upx
 RUN cd /tmp && \
     git clone --depth 1 https://chromium.googlesource.com/libyuv/libyuv && \
     cd libyuv &&\
@@ -37,18 +38,19 @@ WORKDIR /opt/sources
 RUN mkdir build && \
     cd build && \
     cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp .. && \
-    make && make install && upx -9 /tmp/bin/opendlv-device-camera-opencv
+    make && make install 
+# && upx -9 /tmp/bin/opendlv-device-camera-opencv
 
 # Part to deploy opendlv-device-camera-opencv.
-FROM alpine:3.7
+FROM alpine:3.15
 MAINTAINER Ola Benderius "ola.benderius@chalmers.se"
 
-RUN echo http://dl-4.alpinelinux.org/alpine/v3.8/main > /etc/apk/repositories && \
-    echo http://dl-4.alpinelinux.org/alpine/v3.8/community >> /etc/apk/repositories && \
+RUN echo http://dl-4.alpinelinux.org/alpine/v3.15/main > /etc/apk/repositories && \
+    echo http://dl-4.alpinelinux.org/alpine/v3.15/community >> /etc/apk/repositories && \
     echo http://dl-4.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
     apk update && \
     apk --no-cache add \
-        opencv-libs \
+        opencv \
         libcanberra-gtk3
 
 WORKDIR /usr/bin
