@@ -1,3 +1,5 @@
+Moved to https://git.opendlv.org.
+
 ## OpenDLV Microservice to interface with OpenCV-encapsulated cameras
 
 This repository provides source code to interface OpenCV-encapsulated cameras
